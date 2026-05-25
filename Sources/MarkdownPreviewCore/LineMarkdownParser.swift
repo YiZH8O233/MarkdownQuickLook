@@ -24,7 +24,7 @@ public struct LineMarkdownParser {
                 var codeLines: [String] = []
                 index += 1
                 while index < lines.count && !lines[index].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
-                    codeLines.append(lines[index].trimmingCharacters(in: .whitespaces))
+                    codeLines.append(lines[index])
                     index += 1
                 }
                 if index < lines.count { index += 1 }
