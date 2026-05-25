@@ -9,28 +9,45 @@ public struct NativeAttributedStringRenderer {
         for block in blocks {
             switch block {
             case let .heading(level, text):
-                result.append(line(
-                    displayText(text),
+                result.append(markdownLine(
+                    text,
                     font: .systemFont(ofSize: headingSize(level), weight: .semibold),
+                    boldFont: .systemFont(ofSize: headingSize(level), weight: .bold),
                     spacing: 10
                 ))
             case let .paragraph(text):
-                result.append(line(displayText(text), font: .systemFont(ofSize: 14), spacing: 8))
-            case let .blockquote(text):
-                result.append(line(
-                    "> \(displayText(text))",
+                result.append(markdownLine(
+                    text,
                     font: .systemFont(ofSize: 14),
+                    boldFont: .systemFont(ofSize: 14, weight: .semibold),
+                    spacing: 8
+                ))
+            case let .blockquote(text):
+                result.append(markdownLine(
+                    "> \(text)",
+                    font: .systemFont(ofSize: 14),
+                    boldFont: .systemFont(ofSize: 14, weight: .semibold),
                     color: .secondaryLabelColor,
                     spacing: 8
                 ))
             case let .unorderedList(items):
                 for item in items {
-                    result.append(line("- \(displayText(item))", font: .systemFont(ofSize: 14), spacing: 4))
+                    result.append(markdownLine(
+                        "- \(item)",
+                        font: .systemFont(ofSize: 14),
+                        boldFont: .systemFont(ofSize: 14, weight: .semibold),
+                        spacing: 4
+                    ))
                 }
                 result.append(NSAttributedString(string: "\n"))
             case let .orderedList(items):
                 for (offset, item) in items.enumerated() {
-                    result.append(line("\(offset + 1). \(displayText(item))", font: .systemFont(ofSize: 14), spacing: 4))
+                    result.append(markdownLine(
+                        "\(offset + 1). \(item)",
+                        font: .systemFont(ofSize: 14),
+                        boldFont: .systemFont(ofSize: 14, weight: .semibold),
+                        spacing: 4
+                    ))
                 }
                 result.append(NSAttributedString(string: "\n"))
             case let .image(alt, path):
@@ -146,6 +163,65 @@ private extension NativeAttributedStringRenderer {
         )
     }
 
+    func markdownLine(
+        _ text: String,
+        font: NSFont,
+        boldFont: NSFont,
+        color: NSColor = .labelColor,
+        spacing: CGFloat
+    ) -> NSAttributedString {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.paragraphSpacing = spacing
+        paragraph.lineSpacing = 2
+
+        let result = inlineMarkdown(
+            displayText(text),
+            font: font,
+            boldFont: boldFont,
+            color: color,
+            paragraph: paragraph
+        )
+        result.append(NSAttributedString(string: "\n", attributes: [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ]))
+        return result
+    }
+
+    func inlineMarkdown(
+        _ text: String,
+        font: NSFont,
+        boldFont: NSFont,
+        color: NSColor,
+        paragraph: NSParagraphStyle
+    ) -> NSMutableAttributedString {
+        let result = NSMutableAttributedString()
+        var index = text.startIndex
+        var isBold = false
+
+        while index < text.endIndex {
+            if text[index...].hasPrefix("**") || text[index...].hasPrefix("__") {
+                index = text.index(index, offsetBy: 2)
+                isBold.toggle()
+                continue
+            }
+
+            let nextIndex = text.index(after: index)
+            result.append(NSAttributedString(
+                string: String(text[index..<nextIndex]),
+                attributes: [
+                    .font: isBold ? boldFont : font,
+                    .foregroundColor: color,
+                    .paragraphStyle: paragraph
+                ]
+            ))
+            index = nextIndex
+        }
+
+        return result
+    }
+
     func textBlock(
         _ text: String,
         font: NSFont,
@@ -171,7 +247,7 @@ private extension NativeAttributedStringRenderer {
 
     func tableBlock(_ table: MarkdownTable) -> NSAttributedString {
         let result = NSMutableAttributedString()
-        let paragraph = tableParagraphStyle(columnCount: table.headers.count)
+        let paragraph = tableParagraphStyle(for: table)
         let headerAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
             .foregroundColor: NSColor.labelColor,
@@ -201,14 +277,41 @@ private extension NativeAttributedStringRenderer {
         return result
     }
 
-    func tableParagraphStyle(columnCount: Int) -> NSParagraphStyle {
+    func tableParagraphStyle(for table: MarkdownTable) -> NSParagraphStyle {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 3
         paragraph.paragraphSpacing = 2
-        paragraph.defaultTabInterval = 140
-        paragraph.tabStops = (1..<max(columnCount, 2)).map { index in
-            NSTextTab(textAlignment: .left, location: CGFloat(index) * 140)
+
+        let widths = tableColumnWidths(for: table)
+        let tabLocations = widths.dropLast().reduce(into: [CGFloat]()) { locations, width in
+            let previous = locations.last ?? 0
+            locations.append(previous + width)
+        }
+
+        paragraph.defaultTabInterval = 160
+        paragraph.tabStops = tabLocations.map { location in
+            NSTextTab(textAlignment: .left, location: location)
         }
         return paragraph
+    }
+
+    func tableColumnWidths(for table: MarkdownTable) -> [CGFloat] {
+        let columnCount = max(table.headers.count, 1)
+        let rows = [table.headers] + table.rows
+        let font = NSFont.systemFont(ofSize: 13)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+
+        return (0..<columnCount).map { index in
+            let maxTextWidth = rows
+                .compactMap { row -> String? in
+                    guard index < row.count else { return nil }
+                    return displayText(row[index])
+                }
+                .map { text in
+                    (text as NSString).size(withAttributes: attributes).width
+                }
+                .max() ?? 96
+            return min(max(maxTextWidth + 36, 180), 320)
+        }
     }
 }

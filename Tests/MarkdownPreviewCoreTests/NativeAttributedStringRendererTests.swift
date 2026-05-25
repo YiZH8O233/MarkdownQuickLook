@@ -51,6 +51,41 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertFalse(output.string.contains("---"))
     }
 
+    func testRendersInlineBoldWithoutMarkdownMarkers() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .paragraph("**页面结论** 青岛")
+        ])
+
+        XCTAssertEqual(output.string, "页面结论 青岛\n")
+        let boldRange = NSRange(location: 0, length: 4)
+        var effectiveRange = NSRange(location: 0, length: 0)
+        let font = try XCTUnwrap(output.attribute(.font, at: 0, effectiveRange: &effectiveRange) as? NSFont)
+        XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.bold))
+        XCTAssertEqual(effectiveRange.location, boldRange.location)
+        XCTAssertEqual(effectiveRange.length, boldRange.length)
+    }
+
+    func testTableTabStopsExpandForLongColumns() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .table(MarkdownTable(
+                headers: ["已验证打法 / 案例", "可复用工具", "青岛站创新转译"],
+                rows: [[
+                    "苏州首届夏日农友会",
+                    "地标点亮、NFC 打卡、交通痛车、文旅消费",
+                    "从城市打卡升级为四条英雄领路的登陆路线"
+                ]]
+            ))
+        ])
+
+        let paragraph = try XCTUnwrap(output.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        let firstTab = try XCTUnwrap(paragraph.tabStops.first)
+        XCTAssertGreaterThan(firstTab.location, 170)
+    }
+
     func testHidesResearchCitationMarkersAndKeepsEntityNames() {
         let renderer = NativeAttributedStringRenderer()
 
