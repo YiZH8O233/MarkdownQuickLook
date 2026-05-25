@@ -10,27 +10,27 @@ public struct NativeAttributedStringRenderer {
             switch block {
             case let .heading(level, text):
                 result.append(line(
-                    text,
+                    displayText(text),
                     font: .systemFont(ofSize: headingSize(level), weight: .semibold),
                     spacing: 10
                 ))
             case let .paragraph(text):
-                result.append(line(text, font: .systemFont(ofSize: 14), spacing: 8))
+                result.append(line(displayText(text), font: .systemFont(ofSize: 14), spacing: 8))
             case let .blockquote(text):
                 result.append(line(
-                    "> \(text)",
+                    "> \(displayText(text))",
                     font: .systemFont(ofSize: 14),
                     color: .secondaryLabelColor,
                     spacing: 8
                 ))
             case let .unorderedList(items):
                 for item in items {
-                    result.append(line("- \(item)", font: .systemFont(ofSize: 14), spacing: 4))
+                    result.append(line("- \(displayText(item))", font: .systemFont(ofSize: 14), spacing: 4))
                 }
                 result.append(NSAttributedString(string: "\n"))
             case let .orderedList(items):
                 for (offset, item) in items.enumerated() {
-                    result.append(line("\(offset + 1). \(item)", font: .systemFont(ofSize: 14), spacing: 4))
+                    result.append(line("\(offset + 1). \(displayText(item))", font: .systemFont(ofSize: 14), spacing: 4))
                 }
                 result.append(NSAttributedString(string: "\n"))
             case let .image(alt, path):
@@ -52,12 +52,8 @@ public struct NativeAttributedStringRenderer {
                     color: .labelColor,
                     spacingAfter: 10
                 ))
-            case let .table(lines):
-                result.append(textBlock(
-                    lines.joined(separator: "\n"),
-                    font: .monospacedSystemFont(ofSize: 13, weight: .regular),
-                    spacingAfter: 10
-                ))
+            case let .table(table):
+                result.append(tableBlock(table))
             }
         }
 
@@ -66,6 +62,61 @@ public struct NativeAttributedStringRenderer {
 }
 
 private extension NativeAttributedStringRenderer {
+    func displayText(_ text: String) -> String {
+        var output = text
+        while let start = output.range(of: ""),
+              let end = output[start.upperBound...].range(of: "") {
+            let markerRange = start.lowerBound..<end.upperBound
+            let marker = String(output[markerRange])
+            output.replaceSubrange(markerRange, with: replacement(forMarker: marker))
+        }
+        return output
+            .replacingOccurrences(of: "  ", with: " ")
+            .trimmingCharacters(in: .whitespaces)
+    }
+
+    func replacement(forMarker marker: String) -> String {
+        if marker.contains("entity") {
+            return quotedFields(in: marker).dropFirst().first ?? ""
+        }
+        return ""
+    }
+
+    func quotedFields(in text: String) -> [String] {
+        var fields: [String] = []
+        var current = ""
+        var inQuote = false
+        var isEscaped = false
+
+        for character in text {
+            if isEscaped {
+                current.append(character)
+                isEscaped = false
+                continue
+            }
+
+            if character == "\\" {
+                isEscaped = true
+                continue
+            }
+
+            if character == "\"" {
+                if inQuote {
+                    fields.append(current)
+                    current = ""
+                }
+                inQuote.toggle()
+                continue
+            }
+
+            if inQuote {
+                current.append(character)
+            }
+        }
+
+        return fields
+    }
+
     func headingSize(_ level: Int) -> CGFloat {
         switch level {
         case 1: return 26
@@ -116,5 +167,48 @@ private extension NativeAttributedStringRenderer {
         spacer.paragraphSpacing = spacingAfter
         result.append(NSAttributedString(string: "\n", attributes: [.paragraphStyle: spacer]))
         return result
+    }
+
+    func tableBlock(_ table: MarkdownTable) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        let paragraph = tableParagraphStyle(columnCount: table.headers.count)
+        let headerAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraph
+        ]
+        let rowAttributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+            .foregroundColor: NSColor.labelColor,
+            .paragraphStyle: paragraph
+        ]
+
+        result.append(NSAttributedString(
+            string: table.headers.map(displayText).joined(separator: "\t") + "\n",
+            attributes: headerAttributes
+        ))
+
+        for row in table.rows {
+            result.append(NSAttributedString(
+                string: row.map(displayText).joined(separator: "\t") + "\n",
+                attributes: rowAttributes
+            ))
+        }
+
+        let spacer = NSMutableParagraphStyle()
+        spacer.paragraphSpacing = 10
+        result.append(NSAttributedString(string: "\n", attributes: [.paragraphStyle: spacer]))
+        return result
+    }
+
+    func tableParagraphStyle(columnCount: Int) -> NSParagraphStyle {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 3
+        paragraph.paragraphSpacing = 2
+        paragraph.defaultTabInterval = 140
+        paragraph.tabStops = (1..<max(columnCount, 2)).map { index in
+            NSTextTab(textAlignment: .left, location: CGFloat(index) * 140)
+        }
+        return paragraph
     }
 }

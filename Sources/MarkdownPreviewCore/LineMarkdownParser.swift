@@ -38,7 +38,11 @@ public struct LineMarkdownParser {
                     tableLines.append(lines[index].trimmingCharacters(in: .whitespaces))
                     index += 1
                 }
-                blocks.append(.table(tableLines))
+                if let table = Self.parseTable(tableLines) {
+                    blocks.append(.table(table))
+                } else {
+                    blocks.append(.paragraph(tableLines.joined(separator: " ")))
+                }
                 continue
             }
 
@@ -141,5 +145,57 @@ private extension LineMarkdownParser {
         let textStart = line.index(after: dot)
         guard textStart < line.endIndex, line[textStart] == " " else { return nil }
         return String(line[line.index(after: textStart)...])
+    }
+
+    static func parseTable(_ lines: [String]) -> MarkdownTable? {
+        guard lines.count >= 2 else { return nil }
+
+        let headers = splitTableRow(lines[0])
+        let alignmentCells = splitTableRow(lines[1])
+        guard !headers.isEmpty,
+              !alignmentCells.isEmpty,
+              alignmentCells.allSatisfy(isAlignmentCell) else {
+            return nil
+        }
+
+        let alignments = alignmentCells.map(parseAlignment)
+        let rows = lines.dropFirst(2).map(splitTableRow).filter { !$0.isEmpty }
+        return MarkdownTable(
+            headers: headers,
+            alignments: normalizedAlignments(alignments, count: headers.count),
+            rows: rows.map { normalizedRow($0, count: headers.count) }
+        )
+    }
+
+    static func splitTableRow(_ line: String) -> [String] {
+        var trimmed = line.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix("|") { trimmed.removeFirst() }
+        if trimmed.hasSuffix("|") { trimmed.removeLast() }
+        return trimmed
+            .split(separator: "|", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+    }
+
+    static func isAlignmentCell(_ cell: String) -> Bool {
+        let trimmed = cell.trimmingCharacters(in: .whitespaces)
+        let withoutColons = trimmed.replacingOccurrences(of: ":", with: "")
+        return !withoutColons.isEmpty && withoutColons.allSatisfy { $0 == "-" }
+    }
+
+    static func parseAlignment(_ cell: String) -> MarkdownTable.Alignment {
+        let trimmed = cell.trimmingCharacters(in: .whitespaces)
+        if trimmed.hasPrefix(":") && trimmed.hasSuffix(":") { return .center }
+        if trimmed.hasSuffix(":") { return .right }
+        return .left
+    }
+
+    static func normalizedAlignments(_ alignments: [MarkdownTable.Alignment], count: Int) -> [MarkdownTable.Alignment] {
+        if alignments.count >= count { return Array(alignments.prefix(count)) }
+        return alignments + Array(repeating: .left, count: count - alignments.count)
+    }
+
+    static func normalizedRow(_ row: [String], count: Int) -> [String] {
+        if row.count >= count { return Array(row.prefix(count)) }
+        return row + Array(repeating: "", count: count - row.count)
     }
 }
