@@ -1,8 +1,7 @@
 import AppKit
-import MarkdownPreviewCore
 import QuickLookUI
 
-final class PreviewViewController: NSViewController, QLPreviewingController {
+final class PreviewViewController: NSViewController, @MainActor QLPreviewingController {
     private let textView = NSTextView()
     private let scrollView = NSScrollView()
 
