@@ -14,8 +14,18 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
         textView.isEditable = false
         textView.isSelectable = true
         textView.drawsBackground = false
+        textView.autoresizingMask = [.width]
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = false
+        textView.minSize = NSSize(width: 0, height: 0)
+        textView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainerInset = NSSize(width: 28, height: 24)
+        textView.textContainer?.containerSize = NSSize(
+            width: scrollView.contentSize.width,
+            height: CGFloat.greatestFiniteMagnitude
+        )
         textView.textContainer?.widthTracksTextView = true
+        textView.frame = NSRect(origin: .zero, size: scrollView.contentSize)
 
         scrollView.documentView = textView
         view = scrollView

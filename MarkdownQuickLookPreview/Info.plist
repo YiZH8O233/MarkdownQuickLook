@@ -8,12 +8,16 @@
 		<string>com.apple.quicklook.preview</string>
 		<key>NSExtensionPrincipalClass</key>
 		<string>$(PRODUCT_MODULE_NAME).PreviewViewController</string>
-		<key>QLSupportedContentTypes</key>
-		<array>
-			<string>net.daringfireball.markdown</string>
-			<string>public.markdown</string>
-			<string>public.plain-text</string>
-		</array>
+		<key>NSExtensionAttributes</key>
+		<dict>
+			<key>QLIsDataBasedPreview</key>
+			<false/>
+			<key>QLSupportedContentTypes</key>
+			<array>
+				<string>net.daringfireball.markdown</string>
+				<string>public.markdown</string>
+			</array>
+		</dict>
 	</dict>
 </dict>
 </plist>
