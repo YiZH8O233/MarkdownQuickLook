@@ -248,6 +248,7 @@ private extension NativeAttributedStringRenderer {
     func tableBlock(_ table: MarkdownTable) -> NSAttributedString {
         let result = NSMutableAttributedString()
         let columnCount = tableColumnCount(for: table)
+        let columnWidths = tableColumnWidthPercentages(for: table, columnCount: columnCount)
         let textTable = NSTextTable()
         textTable.numberOfColumns = columnCount
         textTable.layoutAlgorithm = .fixedLayoutAlgorithm
@@ -261,6 +262,7 @@ private extension NativeAttributedStringRenderer {
             textTable: textTable,
             rowIndex: 0,
             columnCount: columnCount,
+            columnWidths: columnWidths,
             alignments: table.alignments,
             isHeader: true
         )
@@ -272,6 +274,7 @@ private extension NativeAttributedStringRenderer {
                 textTable: textTable,
                 rowIndex: offset + 1,
                 columnCount: columnCount,
+                columnWidths: columnWidths,
                 alignments: table.alignments,
                 isHeader: false
             )
@@ -292,6 +295,7 @@ private extension NativeAttributedStringRenderer {
         textTable: NSTextTable,
         rowIndex: Int,
         columnCount: Int,
+        columnWidths: [CGFloat],
         alignments: [MarkdownTable.Alignment],
         isHeader: Bool
     ) {
@@ -305,6 +309,7 @@ private extension NativeAttributedStringRenderer {
                 rowIndex: rowIndex,
                 columnIndex: columnIndex,
                 columnCount: columnCount,
+                columnWidth: columnWidths[columnIndex],
                 alignment: columnIndex < alignments.count ? alignments[columnIndex] : .left,
                 isHeader: isHeader
             )
@@ -328,6 +333,7 @@ private extension NativeAttributedStringRenderer {
         rowIndex: Int,
         columnIndex: Int,
         columnCount: Int,
+        columnWidth: CGFloat,
         alignment: MarkdownTable.Alignment,
         isHeader: Bool
     ) -> NSParagraphStyle {
@@ -338,7 +344,7 @@ private extension NativeAttributedStringRenderer {
             startingColumn: columnIndex,
             columnSpan: 1
         )
-        block.setContentWidth(100 / CGFloat(columnCount), type: .percentageValueType)
+        block.setContentWidth(columnWidth, type: .percentageValueType)
         block.setWidth(7, type: .absoluteValueType, for: .padding)
         block.verticalAlignment = .topAlignment
         if isHeader {
@@ -352,6 +358,34 @@ private extension NativeAttributedStringRenderer {
         paragraph.lineSpacing = 2
         paragraph.paragraphSpacing = 0
         return paragraph
+    }
+
+    func tableColumnWidthPercentages(for table: MarkdownTable, columnCount: Int) -> [CGFloat] {
+        let headerFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        let rowFont = NSFont.systemFont(ofSize: 13, weight: .regular)
+        let rows = [table.headers] + table.rows
+        let rawWidths = (0..<columnCount).map { columnIndex in
+            let measured = rows.enumerated().compactMap { rowIndex, row -> CGFloat? in
+                guard columnIndex < row.count else { return nil }
+                let font = rowIndex == 0 ? headerFont : rowFont
+                return measuredCellWidth(row[columnIndex], font: font)
+            }
+            let widest = measured.max() ?? 80
+            return min(max(widest + 18, 80), 360)
+        }
+
+        let total = rawWidths.reduce(0, +)
+        guard total > 0 else {
+            return Array(repeating: 100 / CGFloat(columnCount), count: columnCount)
+        }
+        return rawWidths.map { $0 / total * 100 }
+    }
+
+    func measuredCellWidth(_ text: String, font: NSFont) -> CGFloat {
+        let plainText = displayText(text)
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "__", with: "")
+        return (plainText as NSString).size(withAttributes: [.font: font]).width
     }
 
     func tableColumnCount(for table: MarkdownTable) -> Int {

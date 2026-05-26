@@ -139,7 +139,7 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertEqual(tableBlock.width(for: .border, edge: .maxY), 0)
     }
 
-    func testTablesUseFixedEqualWidthColumns() throws {
+    func testTablesUseContentAwareColumnsWithStablePadding() throws {
         let renderer = NativeAttributedStringRenderer()
 
         let output = renderer.render([
@@ -154,11 +154,17 @@ final class NativeAttributedStringRendererTests: XCTestCase {
             ))
         ])
 
-        let paragraph = try XCTUnwrap(output.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
-        let tableBlock = try XCTUnwrap(paragraph.textBlocks.first as? NSTextTableBlock)
-        XCTAssertEqual(tableBlock.table.layoutAlgorithm, .fixedLayoutAlgorithm)
-        XCTAssertEqual(tableBlock.contentWidthValueType, .percentageValueType)
-        XCTAssertEqual(tableBlock.contentWidth, 25, accuracy: 0.01)
+        let blocks = tableBlocks(in: output)
+        let firstColumn = try XCTUnwrap(blocks[safe: 0])
+        let secondColumn = try XCTUnwrap(blocks[safe: 1])
+        let fourthColumn = try XCTUnwrap(blocks[safe: 3])
+
+        XCTAssertEqual(firstColumn.table.layoutAlgorithm, .fixedLayoutAlgorithm)
+        XCTAssertEqual(firstColumn.contentWidthValueType, .percentageValueType)
+        XCTAssertLessThan(firstColumn.contentWidth, secondColumn.contentWidth)
+        XCTAssertLessThan(firstColumn.contentWidth, fourthColumn.contentWidth)
+        XCTAssertEqual(firstColumn.width(for: .padding, edge: .minX), 7)
+        XCTAssertEqual(secondColumn.width(for: .padding, edge: .minX), 7)
     }
 
     func testHidesResearchCitationMarkersAndKeepsEntityNames() {
@@ -184,5 +190,26 @@ final class NativeAttributedStringRendererTests: XCTestCase {
 
         XCTAssertTrue(output.string.contains("Image: Local"))
         XCTAssertFalse(output.string.contains("Remote image not loaded"))
+    }
+
+    private func tableBlocks(in output: NSAttributedString) -> [NSTextTableBlock] {
+        var blocks: [NSTextTableBlock] = []
+        output.enumerateAttribute(
+            .paragraphStyle,
+            in: NSRange(location: 0, length: output.length)
+        ) { value, _, _ in
+            guard let paragraph = value as? NSParagraphStyle,
+                  let block = paragraph.textBlocks.first as? NSTextTableBlock else {
+                return
+            }
+            blocks.append(block)
+        }
+        return blocks
+    }
+}
+
+private extension Array {
+    subscript(safe index: Index) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
