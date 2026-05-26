@@ -247,71 +247,123 @@ private extension NativeAttributedStringRenderer {
 
     func tableBlock(_ table: MarkdownTable) -> NSAttributedString {
         let result = NSMutableAttributedString()
-        let paragraph = tableParagraphStyle(for: table)
-        let headerAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
-            .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: paragraph
-        ]
-        let rowAttributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-            .foregroundColor: NSColor.labelColor,
-            .paragraphStyle: paragraph
-        ]
+        let columnCount = tableColumnCount(for: table)
+        let textTable = NSTextTable()
+        textTable.numberOfColumns = columnCount
+        textTable.layoutAlgorithm = .automaticLayoutAlgorithm
+        textTable.collapsesBorders = false
+        textTable.hidesEmptyCells = false
+        textTable.setContentWidth(100, type: .percentageValueType)
 
-        result.append(NSAttributedString(
-            string: table.headers.map(displayText).joined(separator: "\t") + "\n",
-            attributes: headerAttributes
-        ))
+        appendTableRow(
+            table.headers,
+            to: result,
+            textTable: textTable,
+            rowIndex: 0,
+            columnCount: columnCount,
+            alignments: table.alignments,
+            isHeader: true
+        )
 
-        for row in table.rows {
-            result.append(NSAttributedString(
-                string: row.map(displayText).joined(separator: "\t") + "\n",
-                attributes: rowAttributes
-            ))
+        for (offset, row) in table.rows.enumerated() {
+            appendTableRow(
+                row,
+                to: result,
+                textTable: textTable,
+                rowIndex: offset + 1,
+                columnCount: columnCount,
+                alignments: table.alignments,
+                isHeader: false
+            )
         }
 
         let spacer = NSMutableParagraphStyle()
         spacer.paragraphSpacing = 10
-        result.append(NSAttributedString(string: "\n", attributes: [.paragraphStyle: spacer]))
+        result.append(NSAttributedString(string: "\n", attributes: [
+            .font: NSFont.systemFont(ofSize: 13),
+            .paragraphStyle: spacer
+        ]))
         return result
     }
 
-    func tableParagraphStyle(for table: MarkdownTable) -> NSParagraphStyle {
+    func appendTableRow(
+        _ cells: [String],
+        to result: NSMutableAttributedString,
+        textTable: NSTextTable,
+        rowIndex: Int,
+        columnCount: Int,
+        alignments: [MarkdownTable.Alignment],
+        isHeader: Bool
+    ) {
+        let font = NSFont.systemFont(ofSize: 13, weight: isHeader ? .semibold : .regular)
+
+        for columnIndex in 0..<columnCount {
+            let cellText = columnIndex < cells.count ? cells[columnIndex] : ""
+            let paragraph = tableCellParagraphStyle(
+                textTable: textTable,
+                rowIndex: rowIndex,
+                columnIndex: columnIndex,
+                alignment: columnIndex < alignments.count ? alignments[columnIndex] : .left,
+                isHeader: isHeader
+            )
+            result.append(NSAttributedString(
+                string: displayText(cellText) + "\n",
+                attributes: [
+                    .font: font,
+                    .foregroundColor: NSColor.labelColor,
+                    .paragraphStyle: paragraph
+                ]
+            ))
+        }
+    }
+
+    func tableCellParagraphStyle(
+        textTable: NSTextTable,
+        rowIndex: Int,
+        columnIndex: Int,
+        alignment: MarkdownTable.Alignment,
+        isHeader: Bool
+    ) -> NSParagraphStyle {
+        let block = NSTextTableBlock(
+            table: textTable,
+            startingRow: rowIndex,
+            rowSpan: 1,
+            startingColumn: columnIndex,
+            columnSpan: 1
+        )
+        block.setWidth(0.5, type: .absoluteValueType, for: .border)
+        block.setWidth(7, type: .absoluteValueType, for: .padding)
+        block.setBorderColor(NSColor.separatorColor.withAlphaComponent(0.45))
+        block.verticalAlignment = .topAlignment
+        if isHeader {
+            block.backgroundColor = NSColor.controlBackgroundColor
+        }
+
         let paragraph = NSMutableParagraphStyle()
-        paragraph.lineSpacing = 3
-        paragraph.paragraphSpacing = 2
-
-        let widths = tableColumnWidths(for: table)
-        let tabLocations = widths.dropLast().reduce(into: [CGFloat]()) { locations, width in
-            let previous = locations.last ?? 0
-            locations.append(previous + width)
-        }
-
-        paragraph.defaultTabInterval = 160
-        paragraph.tabStops = tabLocations.map { location in
-            NSTextTab(textAlignment: .left, location: location)
-        }
+        paragraph.textBlocks = [block]
+        paragraph.alignment = textAlignment(for: alignment)
+        paragraph.lineBreakMode = .byWordWrapping
+        paragraph.lineSpacing = 2
+        paragraph.paragraphSpacing = 0
         return paragraph
     }
 
-    func tableColumnWidths(for table: MarkdownTable) -> [CGFloat] {
-        let columnCount = max(table.headers.count, 1)
-        let rows = [table.headers] + table.rows
-        let font = NSFont.systemFont(ofSize: 13)
-        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+    func tableColumnCount(for table: MarkdownTable) -> Int {
+        max(
+            table.headers.count,
+            table.rows.map(\.count).max() ?? 0,
+            1
+        )
+    }
 
-        return (0..<columnCount).map { index in
-            let maxTextWidth = rows
-                .compactMap { row -> String? in
-                    guard index < row.count else { return nil }
-                    return displayText(row[index])
-                }
-                .map { text in
-                    (text as NSString).size(withAttributes: attributes).width
-                }
-                .max() ?? 96
-            return min(max(maxTextWidth + 36, 180), 320)
+    func textAlignment(for alignment: MarkdownTable.Alignment) -> NSTextAlignment {
+        switch alignment {
+        case .left:
+            return .left
+        case .center:
+            return .center
+        case .right:
+            return .right
         }
     }
 }
