@@ -67,25 +67,23 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertEqual(effectiveRange.length, boldRange.length)
     }
 
-    func testTablesWrapLongCellsWithoutTabs() throws {
+    func testTableTabStopsExpandForLongColumns() throws {
         let renderer = NativeAttributedStringRenderer()
 
         let output = renderer.render([
             .table(MarkdownTable(
-                headers: ["产品", "公司", "首次公开/重要上线", "定位", "模型类型"],
+                headers: ["已验证打法 / 案例", "可复用工具", "青岛站创新转译"],
                 rows: [[
-                    "ChatGPT",
-                    "OpenAI",
-                    "2022-11；2024-2026持续扩展",
-                    "通用AI助手/工作台，支持搜索、写作、代码、语音、深度研究",
-                    "闭源多模态 + 推理模型路由"
+                    "苏州首届夏日农友会",
+                    "地标点亮、NFC 打卡、交通痛车、文旅消费",
+                    "从城市打卡升级为四条英雄领路的登陆路线"
                 ]]
             ))
         ])
 
-        XCTAssertFalse(output.string.contains("\t"))
-        XCTAssertTrue(output.string.contains("通用AI助手/工作台"))
-        XCTAssertGreaterThan(output.string.components(separatedBy: "\n").count, 3)
+        let paragraph = try XCTUnwrap(output.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        let firstTab = try XCTUnwrap(paragraph.tabStops.first)
+        XCTAssertGreaterThan(firstTab.location, 170)
     }
 
     func testHidesResearchCitationMarkersAndKeepsEntityNames() {
