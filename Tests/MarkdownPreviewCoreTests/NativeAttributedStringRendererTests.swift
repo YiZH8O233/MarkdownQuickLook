@@ -88,6 +88,21 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertFalse(output.string.contains("\t"))
     }
 
+    func testTablesCollapseBordersForConsistentGridLines() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .table(MarkdownTable(
+                headers: ["产品", "公司"],
+                rows: [["ChatGPT", "OpenAI"]]
+            ))
+        ])
+
+        let paragraph = try XCTUnwrap(output.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        let tableBlock = try XCTUnwrap(paragraph.textBlocks.first as? NSTextTableBlock)
+        XCTAssertTrue(tableBlock.table.collapsesBorders)
+    }
+
     func testHidesResearchCitationMarkersAndKeepsEntityNames() {
         let renderer = NativeAttributedStringRenderer()
 

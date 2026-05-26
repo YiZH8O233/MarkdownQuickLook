@@ -251,7 +251,7 @@ private extension NativeAttributedStringRenderer {
         let textTable = NSTextTable()
         textTable.numberOfColumns = columnCount
         textTable.layoutAlgorithm = .automaticLayoutAlgorithm
-        textTable.collapsesBorders = false
+        textTable.collapsesBorders = true
         textTable.hidesEmptyCells = false
         textTable.setContentWidth(100, type: .percentageValueType)
 
