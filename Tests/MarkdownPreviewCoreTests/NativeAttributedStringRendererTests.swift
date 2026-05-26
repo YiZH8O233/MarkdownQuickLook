@@ -103,6 +103,42 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertTrue(tableBlock.table.collapsesBorders)
     }
 
+    func testRendersInlineBoldInsideTableCellsWithoutMarkdownMarkers() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .table(MarkdownTable(
+                headers: ["打法", "说明"],
+                rows: [["**登陆青岛**", "抵达海滨暑期城市"]]
+            ))
+        ])
+
+        XCTAssertFalse(output.string.contains("**"))
+        let boldRange = (output.string as NSString).range(of: "登陆青岛")
+        XCTAssertNotEqual(boldRange.location, NSNotFound)
+
+        let font = try XCTUnwrap(output.attribute(.font, at: boldRange.location, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.bold))
+    }
+
+    func testTableCellsDoNotDrawBorders() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .table(MarkdownTable(
+                headers: ["产品", "公司"],
+                rows: [["ChatGPT", "OpenAI"]]
+            ))
+        ])
+
+        let paragraph = try XCTUnwrap(output.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle)
+        let tableBlock = try XCTUnwrap(paragraph.textBlocks.first as? NSTextTableBlock)
+        XCTAssertEqual(tableBlock.width(for: .border, edge: .minX), 0)
+        XCTAssertEqual(tableBlock.width(for: .border, edge: .maxX), 0)
+        XCTAssertEqual(tableBlock.width(for: .border, edge: .minY), 0)
+        XCTAssertEqual(tableBlock.width(for: .border, edge: .maxY), 0)
+    }
+
     func testHidesResearchCitationMarkersAndKeepsEntityNames() {
         let renderer = NativeAttributedStringRenderer()
 

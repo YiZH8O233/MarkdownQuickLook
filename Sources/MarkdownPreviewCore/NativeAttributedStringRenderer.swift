@@ -296,6 +296,7 @@ private extension NativeAttributedStringRenderer {
         isHeader: Bool
     ) {
         let font = NSFont.systemFont(ofSize: 13, weight: isHeader ? .semibold : .regular)
+        let boldFont = NSFont.systemFont(ofSize: 13, weight: .bold)
 
         for columnIndex in 0..<columnCount {
             let cellText = columnIndex < cells.count ? cells[columnIndex] : ""
@@ -306,14 +307,18 @@ private extension NativeAttributedStringRenderer {
                 alignment: columnIndex < alignments.count ? alignments[columnIndex] : .left,
                 isHeader: isHeader
             )
-            result.append(NSAttributedString(
-                string: displayText(cellText) + "\n",
-                attributes: [
-                    .font: font,
-                    .foregroundColor: NSColor.labelColor,
-                    .paragraphStyle: paragraph
-                ]
+            result.append(inlineMarkdown(
+                displayText(cellText),
+                font: font,
+                boldFont: boldFont,
+                color: .labelColor,
+                paragraph: paragraph
             ))
+            result.append(NSAttributedString(string: "\n", attributes: [
+                .font: font,
+                .foregroundColor: NSColor.labelColor,
+                .paragraphStyle: paragraph
+            ]))
         }
     }
 
@@ -331,9 +336,7 @@ private extension NativeAttributedStringRenderer {
             startingColumn: columnIndex,
             columnSpan: 1
         )
-        block.setWidth(0.5, type: .absoluteValueType, for: .border)
         block.setWidth(7, type: .absoluteValueType, for: .padding)
-        block.setBorderColor(NSColor.separatorColor.withAlphaComponent(0.45))
         block.verticalAlignment = .topAlignment
         if isHeader {
             block.backgroundColor = NSColor.controlBackgroundColor

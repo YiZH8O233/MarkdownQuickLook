@@ -4,8 +4,6 @@ import QuickLookUI
 final class PreviewViewController: NSViewController, @MainActor QLPreviewingController {
     private let textView = NSTextView()
     private let scrollView = NSScrollView()
-    private var lastLaidOutViewportSize: NSSize = .zero
-    private var isResizeRefreshScheduled = false
 
     override func loadView() {
         scrollView.hasVerticalScroller = true
@@ -32,11 +30,6 @@ final class PreviewViewController: NSViewController, @MainActor QLPreviewingCont
         view = scrollView
     }
 
-    override func viewDidLayout() {
-        super.viewDidLayout()
-        refreshTextLayoutAfterViewportResize()
-    }
-
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping @Sendable (Error?) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -50,43 +43,14 @@ final class PreviewViewController: NSViewController, @MainActor QLPreviewingCont
                     let attributed = blocks.map { NativeAttributedStringRenderer().render($0) }
                         ?? NSAttributedString(string: text)
                     self.textView.textStorage?.setAttributedString(attributed)
-                    self.lastLaidOutViewportSize = self.scrollView.contentSize
-                    self.refreshTextLayout()
                     handler(nil)
                 }
             } catch {
                 DispatchQueue.main.async {
                     self.textView.string = "This Markdown file could not be previewed."
-                    self.lastLaidOutViewportSize = self.scrollView.contentSize
-                    self.refreshTextLayout()
                     handler(nil)
                 }
             }
         }
-    }
-
-    private func refreshTextLayoutAfterViewportResize() {
-        let viewportSize = scrollView.contentSize
-        guard viewportSize != lastLaidOutViewportSize else { return }
-
-        lastLaidOutViewportSize = viewportSize
-        guard !isResizeRefreshScheduled else { return }
-        isResizeRefreshScheduled = true
-
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.isResizeRefreshScheduled = false
-            self.refreshTextLayout()
-        }
-    }
-
-    private func refreshTextLayout() {
-        guard let textContainer = textView.textContainer else { return }
-
-        let fullRange = NSRange(location: 0, length: textView.string.utf16.count)
-        textView.layoutManager?.invalidateLayout(forCharacterRange: fullRange, actualCharacterRange: nil)
-        textView.layoutManager?.ensureLayout(for: textContainer)
-        textView.needsDisplay = true
-        scrollView.contentView.needsDisplay = true
     }
 }
