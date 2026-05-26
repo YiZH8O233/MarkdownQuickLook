@@ -5,10 +5,15 @@ final class PreviewViewController: NSViewController, @MainActor QLPreviewingCont
     private let textView = NSTextView()
     private let scrollView = NSScrollView()
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     override func loadView() {
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = true
         scrollView.backgroundColor = .textBackgroundColor
+        scrollView.contentView.postsBoundsChangedNotifications = true
 
         textView.isEditable = false
         textView.isSelectable = true
@@ -28,6 +33,18 @@ final class PreviewViewController: NSViewController, @MainActor QLPreviewingCont
 
         scrollView.documentView = textView
         view = scrollView
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(scrollViewBoundsDidChange),
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        refreshTextLayout()
     }
 
     func preparePreviewOfFile(at url: URL, completionHandler handler: @escaping @Sendable (Error?) -> Void) {
@@ -43,14 +60,33 @@ final class PreviewViewController: NSViewController, @MainActor QLPreviewingCont
                     let attributed = blocks.map { NativeAttributedStringRenderer().render($0) }
                         ?? NSAttributedString(string: text)
                     self.textView.textStorage?.setAttributedString(attributed)
+                    self.refreshTextLayout()
                     handler(nil)
                 }
             } catch {
                 DispatchQueue.main.async {
                     self.textView.string = "This Markdown file could not be previewed."
+                    self.refreshTextLayout()
                     handler(nil)
                 }
             }
         }
+    }
+
+    @objc private func scrollViewBoundsDidChange() {
+        refreshTextLayout()
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshTextLayout()
+        }
+    }
+
+    private func refreshTextLayout() {
+        guard let textContainer = textView.textContainer else { return }
+
+        let fullRange = NSRange(location: 0, length: textView.string.utf16.count)
+        textView.layoutManager?.invalidateLayout(forCharacterRange: fullRange, actualCharacterRange: nil)
+        textView.layoutManager?.ensureLayout(for: textContainer)
+        textView.needsDisplay = true
+        scrollView.contentView.needsDisplay = true
     }
 }
