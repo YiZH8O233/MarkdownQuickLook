@@ -80,14 +80,14 @@ qlmanage -p Samples/basic.md
 - 引用块
 - 有序列表和无序列表
 - 链接文本
-- 本地相对图片标签
+- 本地相对图片渲染
 - 代码块
 - 表格
 - Mermaid `xychart-beta` 柱状图和折线图
 - 分隔线
 - Setext 风格标题
 
-远程图片不会被加载。类似 `https://example.com/image.png` 的远程资源会以安全文本方式显示，不会发起网络请求。
+远程图片不会被加载。类似 `https://example.com/image.png` 的远程资源会以安全文本方式显示，不会发起网络请求。本地图片会限制文件体积和显示尺寸，避免影响 Finder 预览流畅度。
 
 ## 大文件策略
 

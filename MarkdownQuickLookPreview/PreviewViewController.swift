@@ -47,7 +47,9 @@ final class PreviewViewController: NSViewController, @MainActor QLPreviewingCont
                         return
                     }
 
-                    let renderer = NativeAttributedStringRenderer()
+                    let renderer = NativeAttributedStringRenderer(
+                        imageResolver: LocalImageResolver(markdownFileURL: url)
+                    )
                     let attributed: NSAttributedString
                     if let blocks {
                         attributed = renderer.render(blocks)

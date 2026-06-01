@@ -208,6 +208,44 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertFalse(output.string.contains("Remote image not loaded"))
     }
 
+    func testRendersResolvedLocalImagesAsNativeAttachments() throws {
+        let directory = try makeTemporaryDirectory()
+        let imageURL = directory.appendingPathComponent("chart.png")
+        try writePNG(to: imageURL, size: NSSize(width: 120, height: 60))
+
+        let renderer = NativeAttributedStringRenderer(
+            imageResolver: LocalImageResolver(markdownFileURL: directory.appendingPathComponent("report.md"))
+        )
+
+        let output = renderer.render([
+            .image(alt: "Chart", path: "chart.png")
+        ])
+
+        XCTAssertFalse(output.string.contains("Image: Chart"))
+        XCTAssertNil(output.string.range(of: "chart.png"))
+        let attachment = try XCTUnwrap(firstAttachment(in: output))
+        XCTAssertEqual(attachment.bounds.width, 120)
+        XCTAssertEqual(attachment.bounds.height, 60)
+    }
+
+    func testKeepsTextFallbackForOversizedLocalImages() throws {
+        let directory = try makeTemporaryDirectory()
+        let imageURL = directory.appendingPathComponent("large.png")
+        try Data(repeating: 0, count: 32).write(to: imageURL)
+
+        let renderer = NativeAttributedStringRenderer(
+            imageResolver: LocalImageResolver(markdownFileURL: directory.appendingPathComponent("report.md")),
+            imageOptions: ImageRenderOptions(maxFileSizeBytes: 8)
+        )
+
+        let output = renderer.render([
+            .image(alt: "Large chart", path: "large.png")
+        ])
+
+        XCTAssertTrue(output.string.contains("Image too large: large.png"))
+        XCTAssertNil(firstAttachment(in: output))
+    }
+
     func testRendersThematicBreakWithoutMarkdownMarkers() {
         let renderer = NativeAttributedStringRenderer()
 
@@ -306,6 +344,26 @@ final class NativeAttributedStringRendererTests: XCTestCase {
             stop.pointee = true
         }
         return attachment
+    }
+
+    private func makeTemporaryDirectory() throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    private func writePNG(to url: URL, size: NSSize) throws {
+        let image = NSImage(size: size)
+        image.lockFocus()
+        NSColor.systemBlue.setFill()
+        NSRect(origin: .zero, size: size).fill()
+        image.unlockFocus()
+
+        let tiffData = try XCTUnwrap(image.tiffRepresentation)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: tiffData))
+        let pngData = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+        try pngData.write(to: url)
     }
 }
 

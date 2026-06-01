@@ -70,12 +70,12 @@ First version supports a small, fast Markdown subset:
 - Block quotes
 - Ordered and unordered lists
 - Links as readable text
-- Local relative image labels
+- Local relative images
 - Fenced code blocks
 - Native table rendering
 - Mermaid `xychart-beta` bar and line charts
 
-Remote images are not loaded. URLs such as `https://example.com/image.png` render as safe text instead of making a network request.
+Remote images are not loaded. URLs such as `https://example.com/image.png` render as safe text instead of making a network request. Local images are constrained by file size and display size so Finder previews stay responsive.
 
 ## Samples
 

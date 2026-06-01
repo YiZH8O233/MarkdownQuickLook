@@ -1,7 +1,29 @@
 import AppKit
 
+public struct ImageRenderOptions {
+    public let maxFileSizeBytes: UInt64
+    public let maxDisplaySize: NSSize
+
+    public init(
+        maxFileSizeBytes: UInt64 = 10 * 1024 * 1024,
+        maxDisplaySize: NSSize = NSSize(width: 720, height: 480)
+    ) {
+        self.maxFileSizeBytes = maxFileSizeBytes
+        self.maxDisplaySize = maxDisplaySize
+    }
+}
+
 public struct NativeAttributedStringRenderer {
-    public init() {}
+    private let imageResolver: LocalImageResolver?
+    private let imageOptions: ImageRenderOptions
+
+    public init(
+        imageResolver: LocalImageResolver? = nil,
+        imageOptions: ImageRenderOptions = ImageRenderOptions()
+    ) {
+        self.imageResolver = imageResolver
+        self.imageOptions = imageOptions
+    }
 
     public func render(_ blocks: [MarkdownBlock]) -> NSAttributedString {
         let result = NSMutableAttributedString()
@@ -51,17 +73,7 @@ public struct NativeAttributedStringRenderer {
                 }
                 result.append(NSAttributedString(string: "\n"))
             case let .image(alt, path):
-                let lowercasePath = path.lowercased()
-                let isRemote = lowercasePath.hasPrefix("http://") || lowercasePath.hasPrefix("https://")
-                let label = isRemote
-                    ? "Remote image not loaded: \(path)"
-                    : "Image: \(alt.isEmpty ? path : alt)"
-                result.append(line(
-                    label,
-                    font: .systemFont(ofSize: 13),
-                    color: .secondaryLabelColor,
-                    spacing: 8
-                ))
+                result.append(imageBlock(alt: alt, path: path))
             case let .codeBlock(_, code):
                 result.append(textBlock(
                     code,
@@ -441,6 +453,110 @@ private extension NativeAttributedStringRenderer {
         case .right:
             return .right
         }
+    }
+
+    func imageBlock(alt: String, path: String) -> NSAttributedString {
+        guard let imageResolver else {
+            return fallbackImageLine(alt: alt, path: path)
+        }
+
+        switch imageResolver.resolve(path) {
+        case let .remoteRejected(remotePath):
+            return line(
+                "Remote image not loaded: \(remotePath)",
+                font: .systemFont(ofSize: 13),
+                color: .secondaryLabelColor,
+                spacing: 8
+            )
+        case let .missing(missingPath):
+            return line(
+                "Missing image: \(missingPath)",
+                font: .systemFont(ofSize: 13),
+                color: .secondaryLabelColor,
+                spacing: 8
+            )
+        case let .local(url):
+            guard isSupportedLocalImage(url) else {
+                return line(
+                    "Unsupported image: \(path)",
+                    font: .systemFont(ofSize: 13),
+                    color: .secondaryLabelColor,
+                    spacing: 8
+                )
+            }
+
+            guard localFileSize(url) <= imageOptions.maxFileSizeBytes else {
+                return line(
+                    "Image too large: \(path)",
+                    font: .systemFont(ofSize: 13),
+                    color: .secondaryLabelColor,
+                    spacing: 8
+                )
+            }
+
+            guard let image = NSImage(contentsOf: url),
+                  image.size.width > 0,
+                  image.size.height > 0 else {
+                return line(
+                    "Image could not be loaded: \(path)",
+                    font: .systemFont(ofSize: 13),
+                    color: .secondaryLabelColor,
+                    spacing: 8
+                )
+            }
+
+            return imageAttachmentBlock(image)
+        }
+    }
+
+    func fallbackImageLine(alt: String, path: String) -> NSAttributedString {
+        let lowercasePath = path.lowercased()
+        let isRemote = lowercasePath.hasPrefix("http://") || lowercasePath.hasPrefix("https://")
+        let label = isRemote
+            ? "Remote image not loaded: \(path)"
+            : "Image: \(alt.isEmpty ? path : alt)"
+        return line(
+            label,
+            font: .systemFont(ofSize: 13),
+            color: .secondaryLabelColor,
+            spacing: 8
+        )
+    }
+
+    func imageAttachmentBlock(_ image: NSImage) -> NSAttributedString {
+        let scaledSize = scaledImageSize(image.size, maxSize: imageOptions.maxDisplaySize)
+        image.size = scaledSize
+
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0, y: -4, width: scaledSize.width, height: scaledSize.height)
+
+        let result = NSMutableAttributedString(attachment: attachment)
+        let spacer = NSMutableParagraphStyle()
+        spacer.paragraphSpacing = 10
+        result.append(NSAttributedString(string: "\n", attributes: [
+            .font: NSFont.systemFont(ofSize: 1),
+            .paragraphStyle: spacer
+        ]))
+        return result
+    }
+
+    func isSupportedLocalImage(_ url: URL) -> Bool {
+        let supportedExtensions: Set<String> = [
+            "png", "jpg", "jpeg", "gif", "tif", "tiff", "heic", "heif", "webp", "ppm"
+        ]
+        return supportedExtensions.contains(url.pathExtension.lowercased())
+    }
+
+    func localFileSize(_ url: URL) -> UInt64 {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        return (attributes?[.size] as? UInt64) ?? 0
+    }
+
+    func scaledImageSize(_ size: NSSize, maxSize: NSSize) -> NSSize {
+        guard size.width > 0, size.height > 0 else { return size }
+        let scale = min(maxSize.width / size.width, maxSize.height / size.height, 1)
+        return NSSize(width: size.width * scale, height: size.height * scale)
     }
 
     func xyChartBlock(_ chart: MarkdownXYChart) -> NSAttributedString {
