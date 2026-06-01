@@ -73,6 +73,8 @@ public struct NativeAttributedStringRenderer {
                 result.append(thematicBreak())
             case let .table(table):
                 result.append(tableBlock(table))
+            case let .xyChart(chart):
+                result.append(xyChartBlock(chart))
             }
         }
 
@@ -439,5 +441,169 @@ private extension NativeAttributedStringRenderer {
         case .right:
             return .right
         }
+    }
+
+    func xyChartBlock(_ chart: MarkdownXYChart) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+
+        if !chart.title.isEmpty {
+            result.append(line(
+                chart.title,
+                font: .systemFont(ofSize: 14, weight: .semibold),
+                spacing: 4
+            ))
+        }
+
+        let image = xyChartImage(for: chart)
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0, y: -4, width: image.size.width, height: image.size.height)
+
+        result.append(NSAttributedString(attachment: attachment))
+
+        let spacer = NSMutableParagraphStyle()
+        spacer.paragraphSpacing = 12
+        result.append(NSAttributedString(string: "\n", attributes: [
+            .font: NSFont.systemFont(ofSize: 1),
+            .paragraphStyle: spacer
+        ]))
+        return result
+    }
+
+    func xyChartImage(for chart: MarkdownXYChart) -> NSImage {
+        let size = NSSize(width: 720, height: 320)
+        let image = NSImage(size: size)
+
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        NSColor.textBackgroundColor.setFill()
+        NSRect(origin: .zero, size: size).fill()
+
+        let plotRect = NSRect(x: 58, y: 54, width: size.width - 82, height: size.height - 82)
+        drawChartGrid(in: plotRect, chart: chart)
+        drawChartSeries(in: plotRect, chart: chart)
+        drawChartLabels(in: plotRect, chart: chart)
+
+        return image
+    }
+
+    func drawChartGrid(in plotRect: NSRect, chart: MarkdownXYChart) {
+        let axisColor = NSColor.separatorColor
+        let gridColor = NSColor.separatorColor.withAlphaComponent(0.35)
+        let tickCount = 5
+
+        for tick in 0...tickCount {
+            let fraction = CGFloat(tick) / CGFloat(tickCount)
+            let y = plotRect.minY + plotRect.height * fraction
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: plotRect.minX, y: y))
+            path.line(to: NSPoint(x: plotRect.maxX, y: y))
+            (tick == 0 ? axisColor : gridColor).setStroke()
+            path.lineWidth = tick == 0 ? 1.2 : 0.6
+            path.stroke()
+
+            let value = chart.yAxisRange.lowerBound + Double(fraction) * (chart.yAxisRange.upperBound - chart.yAxisRange.lowerBound)
+            drawChartText(formatTick(value), at: NSPoint(x: 8, y: y - 7), font: .systemFont(ofSize: 10), color: .secondaryLabelColor)
+        }
+
+        let yAxis = NSBezierPath()
+        yAxis.move(to: NSPoint(x: plotRect.minX, y: plotRect.minY))
+        yAxis.line(to: NSPoint(x: plotRect.minX, y: plotRect.maxY))
+        axisColor.setStroke()
+        yAxis.lineWidth = 1.2
+        yAxis.stroke()
+
+        if !chart.yAxisLabel.isEmpty {
+            drawChartText(chart.yAxisLabel, at: NSPoint(x: plotRect.minX, y: plotRect.maxY + 12), font: .systemFont(ofSize: 10, weight: .medium), color: .secondaryLabelColor)
+        }
+    }
+
+    func drawChartSeries(in plotRect: NSRect, chart: MarkdownXYChart) {
+        let count = chartPointCount(chart)
+        guard count > 0 else { return }
+
+        let barSeries = chart.series.filter { $0.kind == .bar }
+        let lineSeries = chart.series.filter { $0.kind == .line }
+        let slotWidth = plotRect.width / CGFloat(count)
+        let zeroY = yPosition(for: 0, in: plotRect, range: chart.yAxisRange)
+
+        for (seriesIndex, series) in barSeries.enumerated() {
+            let barGroupWidth = slotWidth * 0.54
+            let barWidth = max(4, barGroupWidth / CGFloat(max(barSeries.count, 1)))
+            let startOffset = -barGroupWidth / 2 + barWidth * CGFloat(seriesIndex)
+
+            for index in 0..<min(count, series.values.count) {
+                let value = series.values[index]
+                let xCenter = plotRect.minX + slotWidth * (CGFloat(index) + 0.5)
+                let y = yPosition(for: value, in: plotRect, range: chart.yAxisRange)
+                let rect = NSRect(
+                    x: xCenter + startOffset,
+                    y: min(zeroY, y),
+                    width: barWidth * 0.82,
+                    height: max(abs(y - zeroY), 1)
+                )
+                NSColor.controlAccentColor.withAlphaComponent(0.82).setFill()
+                NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2).fill()
+            }
+        }
+
+        for series in lineSeries {
+            let path = NSBezierPath()
+            for index in 0..<min(count, series.values.count) {
+                let point = NSPoint(
+                    x: plotRect.minX + slotWidth * (CGFloat(index) + 0.5),
+                    y: yPosition(for: series.values[index], in: plotRect, range: chart.yAxisRange)
+                )
+                index == 0 ? path.move(to: point) : path.line(to: point)
+            }
+            NSColor.systemBlue.setStroke()
+            path.lineWidth = 2
+            path.stroke()
+        }
+    }
+
+    func drawChartLabels(in plotRect: NSRect, chart: MarkdownXYChart) {
+        let count = chartPointCount(chart)
+        guard count > 0 else { return }
+
+        let slotWidth = plotRect.width / CGFloat(count)
+        let font = NSFont.systemFont(ofSize: 10)
+        for index in 0..<min(count, chart.xAxisLabels.count) {
+            let label = chart.xAxisLabels[index]
+            let labelSize = (label as NSString).size(withAttributes: [.font: font])
+            let x = plotRect.minX + slotWidth * (CGFloat(index) + 0.5) - labelSize.width / 2
+            drawChartText(label, at: NSPoint(x: x, y: plotRect.minY - 24), font: font, color: .secondaryLabelColor)
+        }
+    }
+
+    func drawChartText(_ text: String, at point: NSPoint, font: NSFont, color: NSColor) {
+        (text as NSString).draw(
+            at: point,
+            withAttributes: [
+                .font: font,
+                .foregroundColor: color
+            ]
+        )
+    }
+
+    func yPosition(for value: Double, in plotRect: NSRect, range: ClosedRange<Double>) -> CGFloat {
+        let clamped = min(max(value, range.lowerBound), range.upperBound)
+        let fraction = (clamped - range.lowerBound) / (range.upperBound - range.lowerBound)
+        return plotRect.minY + CGFloat(fraction) * plotRect.height
+    }
+
+    func chartPointCount(_ chart: MarkdownXYChart) -> Int {
+        max(
+            chart.xAxisLabels.count,
+            chart.series.map(\.values.count).max() ?? 0
+        )
+    }
+
+    func formatTick(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.1f", value)
     }
 }

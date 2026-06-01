@@ -256,6 +256,30 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertFalse(font.fontDescriptor.symbolicTraits.contains(.monoSpace))
     }
 
+    func testRendersXYChartsAsNativeAttachments() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .xyChart(MarkdownXYChart(
+                title: "常规DRAM季度合同价变动中枢",
+                xAxisLabels: ["1Q24", "2Q24", "3Q24", "4Q24"],
+                yAxisLabel: "QoQ %",
+                yAxisRange: -20...100,
+                series: [
+                    MarkdownXYChart.Series(kind: .bar, values: [15.5, 5.5, 10.5, 2.5])
+                ]
+            ))
+        ])
+
+        XCTAssertTrue(output.string.contains("常规DRAM季度合同价变动中枢"))
+        XCTAssertFalse(output.string.contains("xychart-beta"))
+        XCTAssertFalse(output.string.contains("bar ["))
+
+        let attachment = try XCTUnwrap(firstAttachment(in: output))
+        XCTAssertGreaterThan(attachment.bounds.width, 500)
+        XCTAssertGreaterThan(attachment.bounds.height, 250)
+    }
+
     private func tableBlocks(in output: NSAttributedString) -> [NSTextTableBlock] {
         var blocks: [NSTextTableBlock] = []
         output.enumerateAttribute(
@@ -269,6 +293,19 @@ final class NativeAttributedStringRendererTests: XCTestCase {
             blocks.append(block)
         }
         return blocks
+    }
+
+    private func firstAttachment(in output: NSAttributedString) -> NSTextAttachment? {
+        var attachment: NSTextAttachment?
+        output.enumerateAttribute(
+            .attachment,
+            in: NSRange(location: 0, length: output.length)
+        ) { value, _, stop in
+            guard let value = value as? NSTextAttachment else { return }
+            attachment = value
+            stop.pointee = true
+        }
+        return attachment
     }
 }
 

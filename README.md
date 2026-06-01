@@ -72,7 +72,8 @@ First version supports a small, fast Markdown subset:
 - Links as readable text
 - Local relative image labels
 - Fenced code blocks
-- Basic table fallback text
+- Native table rendering
+- Mermaid `xychart-beta` bar and line charts
 
 Remote images are not loaded. URLs such as `https://example.com/image.png` render as safe text instead of making a network request.
 

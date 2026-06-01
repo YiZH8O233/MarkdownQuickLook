@@ -34,7 +34,12 @@ public struct LineMarkdownParser {
                     index += 1
                 }
                 if index < lines.count { index += 1 }
-                blocks.append(.codeBlock(language: language.isEmpty ? nil : language, code: codeLines.joined(separator: "\n")))
+                let code = codeLines.joined(separator: "\n")
+                if let chart = Self.parseXYChart(code, language: language) {
+                    blocks.append(.xyChart(chart))
+                } else {
+                    blocks.append(.codeBlock(language: language.isEmpty ? nil : language, code: code))
+                }
                 continue
             }
 
@@ -237,5 +242,151 @@ private extension LineMarkdownParser {
     static func normalizedRow(_ row: [String], count: Int) -> [String] {
         if row.count >= count { return Array(row.prefix(count)) }
         return row + Array(repeating: "", count: count - row.count)
+    }
+
+    static func parseXYChart(_ code: String, language: String) -> MarkdownXYChart? {
+        let normalizedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalizedLanguage.isEmpty || normalizedLanguage == "mermaid" else { return nil }
+
+        let lines = code
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+
+        guard lines.first == "xychart-beta" else { return nil }
+
+        var title = ""
+        var xAxisLabels: [String] = []
+        var yAxisLabel = ""
+        var yAxisRange: ClosedRange<Double>?
+        var series: [MarkdownXYChart.Series] = []
+
+        for line in lines.dropFirst() {
+            if line.hasPrefix("title ") {
+                title = quotedString(after: "title", in: line) ?? String(line.dropFirst("title".count)).trimmingCharacters(in: .whitespaces)
+                continue
+            }
+
+            if line.hasPrefix("x-axis ") {
+                xAxisLabels = quotedArray(in: line)
+                continue
+            }
+
+            if line.hasPrefix("y-axis ") {
+                let parsedAxis = parseYAxis(line)
+                yAxisLabel = parsedAxis.label
+                yAxisRange = parsedAxis.range
+                continue
+            }
+
+            if line.hasPrefix("bar ") {
+                series.append(.init(kind: .bar, values: numberArray(in: line)))
+                continue
+            }
+
+            if line.hasPrefix("line ") {
+                series.append(.init(kind: .line, values: numberArray(in: line)))
+                continue
+            }
+        }
+
+        guard !xAxisLabels.isEmpty,
+              let yAxisRange,
+              !series.isEmpty,
+              series.allSatisfy({ !$0.values.isEmpty }) else {
+            return nil
+        }
+
+        return MarkdownXYChart(
+            title: title,
+            xAxisLabels: xAxisLabels,
+            yAxisLabel: yAxisLabel,
+            yAxisRange: yAxisRange,
+            series: series
+        )
+    }
+
+    static func quotedString(after marker: String, in line: String) -> String? {
+        let searchStart = line.index(line.startIndex, offsetBy: marker.count)
+        guard let openingQuote = line[searchStart...].firstIndex(of: "\"") else { return nil }
+        let valueStart = line.index(after: openingQuote)
+        guard let closingQuote = line[valueStart...].firstIndex(of: "\"") else { return nil }
+        return String(line[valueStart..<closingQuote])
+    }
+
+    static func quotedArray(in line: String) -> [String] {
+        guard let start = line.firstIndex(of: "["),
+              let end = line.lastIndex(of: "]"),
+              start < end else {
+            return []
+        }
+
+        let content = line[line.index(after: start)..<end]
+        var values: [String] = []
+        var current = ""
+        var inQuote = false
+        var isEscaped = false
+
+        for character in content {
+            if isEscaped {
+                current.append(character)
+                isEscaped = false
+                continue
+            }
+
+            if character == "\\" {
+                isEscaped = true
+                continue
+            }
+
+            if character == "\"" {
+                if inQuote {
+                    values.append(current)
+                    current = ""
+                }
+                inQuote.toggle()
+                continue
+            }
+
+            if inQuote {
+                current.append(character)
+            }
+        }
+
+        return values
+    }
+
+    static func numberArray(in line: String) -> [Double] {
+        guard let start = line.firstIndex(of: "["),
+              let end = line.lastIndex(of: "]"),
+              start < end else {
+            return []
+        }
+
+        return line[line.index(after: start)..<end]
+            .split(separator: ",")
+            .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    static func parseYAxis(_ line: String) -> (label: String, range: ClosedRange<Double>?) {
+        let label = quotedString(after: "y-axis", in: line) ?? ""
+        let withoutLabel: Substring
+        if let openingQuote = line.firstIndex(of: "\""),
+           let closingQuote = line[line.index(after: openingQuote)...].firstIndex(of: "\"") {
+            withoutLabel = line[line.index(after: closingQuote)...]
+        } else {
+            withoutLabel = line.dropFirst("y-axis".count)
+        }
+
+        let parts = withoutLabel.components(separatedBy: "-->")
+        guard parts.count == 2,
+              let lower = Double(parts[0].trimmingCharacters(in: .whitespaces)),
+              let upper = Double(parts[1].trimmingCharacters(in: .whitespaces)),
+              lower < upper else {
+            return (label, nil)
+        }
+
+        return (label, lower...upper)
     }
 }

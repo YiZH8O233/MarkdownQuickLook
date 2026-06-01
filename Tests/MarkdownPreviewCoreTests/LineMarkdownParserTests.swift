@@ -100,4 +100,30 @@ final class LineMarkdownParserTests: XCTestCase {
             .heading(level: 2, text: "Section title")
         ])
     }
+
+    func testParsesMermaidXYChartBlocks() {
+        let markdown = """
+        ```mermaid
+        xychart-beta
+            title "常规DRAM季度合同价变动中枢"
+            x-axis ["1Q24","2Q24","3Q24","4Q24"]
+            y-axis "QoQ %" -20 --> 100
+            bar [15.5, 5.5, 10.5, 2.5]
+        ```
+        """
+
+        let blocks = LineMarkdownParser().parse(markdown)
+
+        XCTAssertEqual(blocks, [
+            .xyChart(MarkdownXYChart(
+                title: "常规DRAM季度合同价变动中枢",
+                xAxisLabels: ["1Q24", "2Q24", "3Q24", "4Q24"],
+                yAxisLabel: "QoQ %",
+                yAxisRange: -20...100,
+                series: [
+                    MarkdownXYChart.Series(kind: .bar, values: [15.5, 5.5, 10.5, 2.5])
+                ]
+            ))
+        ])
+    }
 }

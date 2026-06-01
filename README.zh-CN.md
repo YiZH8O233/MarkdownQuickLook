@@ -83,6 +83,7 @@ qlmanage -p Samples/basic.md
 - 本地相对图片标签
 - 代码块
 - 表格
+- Mermaid `xychart-beta` 柱状图和折线图
 - 分隔线
 - Setext 风格标题
 
