@@ -801,10 +801,10 @@ private extension NativeAttributedStringRenderer {
             let measured = rows.enumerated().compactMap { rowIndex, row -> CGFloat? in
                 guard columnIndex < row.count else { return nil }
                 let font = rowIndex == 0 ? headerFont : rowFont
-                return measuredCellWidth(row[columnIndex], font: font)
+                return measuredColumnWidth(row[columnIndex], font: font, columnCount: columnCount)
             }
             let widest = measured.max() ?? 80
-            return min(max(widest + 18, 80), 360)
+            return widest
         }
 
         let total = rawWidths.reduce(0, +)
@@ -814,9 +814,25 @@ private extension NativeAttributedStringRenderer {
         return rawWidths.map { $0 / total * 100 }
     }
 
+    func measuredColumnWidth(_ text: String, font: NSFont, columnCount: Int) -> CGFloat {
+        let plainText = plainInlineText(text, font: font)
+        let readableWidth = measuredTextWidth(plainText, font: font)
+        let tokenWidth = longestUnbreakableTokenWidth(in: plainText, font: font)
+        let baseMinimum: CGFloat = columnCount >= 6 ? 96 : 80
+        let maximum: CGFloat = columnCount >= 6 ? 220 : 360
+        let preferredWeight: CGFloat = columnCount >= 6 ? 0.35 : 0.75
+        let minimum = min(max(tokenWidth + 18, baseMinimum), maximum)
+        let preferred = min(max(readableWidth + 18, minimum), maximum)
+        return minimum + (preferred - minimum) * preferredWeight
+    }
+
     func measuredCellWidth(_ text: String, font: NSFont) -> CGFloat {
+        measuredTextWidth(plainInlineText(text, font: font), font: font)
+    }
+
+    func plainInlineText(_ text: String, font: NSFont) -> String {
         let paragraph = NSMutableParagraphStyle()
-        let plainText = inlineMarkdown(
+        return inlineMarkdown(
             displayText(text),
             font: font,
             boldFont: font,
@@ -824,7 +840,36 @@ private extension NativeAttributedStringRenderer {
             boldColor: theme.primaryTextColor,
             paragraph: paragraph
         ).string
-        return (plainText as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    func measuredTextWidth(_ text: String, font: NSFont) -> CGFloat {
+        (text as NSString).size(withAttributes: [.font: font]).width
+    }
+
+    func longestUnbreakableTokenWidth(in text: String, font: NSFont) -> CGFloat {
+        let tokens = asciiWordTokens(in: text)
+        guard !tokens.isEmpty else { return 0 }
+        return tokens.map { measuredTextWidth($0, font: font) }.max() ?? 0
+    }
+
+    func asciiWordTokens(in text: String) -> [String] {
+        var tokens: [String] = []
+        var current = ""
+
+        for character in text {
+            if character.isASCIIWordTokenCharacter {
+                current.append(character)
+            } else if !current.isEmpty {
+                tokens.append(current)
+                current.removeAll()
+            }
+        }
+
+        if !current.isEmpty {
+            tokens.append(current)
+        }
+
+        return tokens
     }
 
     func tableColumnCount(for table: MarkdownTable) -> Int {
@@ -1113,5 +1158,19 @@ private extension NativeAttributedStringRenderer {
             return String(Int(value))
         }
         return String(format: "%.1f", value)
+    }
+}
+
+private extension Character {
+    var isASCIIWordTokenCharacter: Bool {
+        guard let scalar = unicodeScalars.first, unicodeScalars.count == 1, scalar.isASCII else {
+            return false
+        }
+
+        if CharacterSet.alphanumerics.contains(scalar) {
+            return true
+        }
+
+        return scalar == "/" || scalar == "-" || scalar == "_" || scalar == "."
     }
 }

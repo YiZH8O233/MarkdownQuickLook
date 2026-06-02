@@ -255,6 +255,45 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertEqual(secondColumn.width(for: .padding, edge: .minX), 7)
     }
 
+    func testWideTablesKeepShortIdentifierColumnsReadable() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .table(MarkdownTable(
+                headers: ["产品", "公司", "首次公开/重要上线", "定位", "模型类型", "目标用户与主要场景", "获取方式与定价逻辑", "备注"],
+                rows: [
+                    [
+                        "ChatGPT",
+                        "OpenAI",
+                        "2022-11；2024-2026持续扩展",
+                        "通用AI助手/工作台",
+                        "闭源多模态 + 推理模型路由",
+                        "大众用户、知识工作者；搜索、写作、代码、语音、深度研究",
+                        "Web/App/桌面；Free、Go、Plus、Pro、Business、Enterprise；API另计",
+                        ""
+                    ],
+                    [
+                        "Claude Code",
+                        "Anthropic",
+                        "2025起产品化",
+                        "终端/IDE代码代理",
+                        "闭源Agentic Coding模型",
+                        "开发者团队；读库、改文件、跑命令、PR审查",
+                        "Pro/Max/Team/Enterprise登录；或Console按token计费",
+                        ""
+                    ]
+                ]
+            ))
+        ])
+
+        let blocks = tableBlocks(in: output)
+        let firstColumn = try XCTUnwrap(blocks[safe: 0])
+        let secondColumn = try XCTUnwrap(blocks[safe: 1])
+
+        XCTAssertGreaterThanOrEqual(firstColumn.contentWidth, 8)
+        XCTAssertGreaterThanOrEqual(secondColumn.contentWidth, 8)
+    }
+
     func testHidesResearchCitationMarkersAndKeepsEntityNames() {
         let renderer = NativeAttributedStringRenderer()
 
