@@ -67,6 +67,26 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertEqual(effectiveRange.length, boldRange.length)
     }
 
+    func testAppliesAcademicInkBlueThemeToHeadingsAndBoldText() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .heading(level: 1, text: "Title"),
+            .heading(level: 2, text: "Section"),
+            .paragraph("Normal **Important** text")
+        ])
+
+        let h1Color = try XCTUnwrap(output.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor)
+        let h2Range = (output.string as NSString).range(of: "Section")
+        let h2Color = try XCTUnwrap(output.attribute(.foregroundColor, at: h2Range.location, effectiveRange: nil) as? NSColor)
+        let boldRange = (output.string as NSString).range(of: "Important")
+        let boldColor = try XCTUnwrap(output.attribute(.foregroundColor, at: boldRange.location, effectiveRange: nil) as? NSColor)
+
+        XCTAssertEqual(h1Color.hexRGBString, "#0C447C")
+        XCTAssertEqual(h2Color.hexRGBString, "#185FA5")
+        XCTAssertEqual(boldColor.hexRGBString, "#185FA5")
+    }
+
     func testRendersEscapedInlineBoldWithoutMarkdownMarkers() throws {
         let renderer = NativeAttributedStringRenderer()
 
@@ -370,5 +390,17 @@ final class NativeAttributedStringRendererTests: XCTestCase {
 private extension Array {
     subscript(safe index: Index) -> Element? {
         indices.contains(index) ? self[index] : nil
+    }
+}
+
+private extension NSColor {
+    var hexRGBString: String? {
+        guard let rgb = usingColorSpace(.sRGB) else { return nil }
+        return String(
+            format: "#%02X%02X%02X",
+            Int(round(rgb.redComponent * 255)),
+            Int(round(rgb.greenComponent * 255)),
+            Int(round(rgb.blueComponent * 255))
+        )
     }
 }

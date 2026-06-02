@@ -17,6 +17,7 @@
 		100000000000000000000008 /* PreviewLimits.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000108 /* PreviewLimits.swift */; };
 		100000000000000000000009 /* NativeAttributedStringRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000109 /* NativeAttributedStringRenderer.swift */; };
 		10000000000000000000000B /* PreviewGenerationGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010A /* PreviewGenerationGate.swift */; };
+		10000000000000000000000C /* MarkdownRenderTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10000000000000000000010B /* MarkdownRenderTheme.swift */; };
 		10000000000000000000000A /* MarkdownQuickLookPreview.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = 100000000000000000000202 /* MarkdownQuickLookPreview.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -55,6 +56,7 @@
 		100000000000000000000108 /* PreviewLimits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewLimits.swift; sourceTree = "<group>"; };
 		100000000000000000000109 /* NativeAttributedStringRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeAttributedStringRenderer.swift; sourceTree = "<group>"; };
 		10000000000000000000010A /* PreviewGenerationGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewGenerationGate.swift; sourceTree = "<group>"; };
+		10000000000000000000010B /* MarkdownRenderTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRenderTheme.swift; sourceTree = "<group>"; };
 		100000000000000000000110 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		100000000000000000000111 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		100000000000000000000201 /* MarkdownQuickLook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MarkdownQuickLook.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -117,6 +119,7 @@
 				100000000000000000000107 /* LocalImageResolver.swift */,
 				100000000000000000000108 /* PreviewLimits.swift */,
 				10000000000000000000010A /* PreviewGenerationGate.swift */,
+				10000000000000000000010B /* MarkdownRenderTheme.swift */,
 				100000000000000000000109 /* NativeAttributedStringRenderer.swift */,
 			);
 			path = Sources/MarkdownPreviewCore;
@@ -227,6 +230,7 @@
 				100000000000000000000007 /* LocalImageResolver.swift in Sources */,
 				100000000000000000000008 /* PreviewLimits.swift in Sources */,
 				10000000000000000000000B /* PreviewGenerationGate.swift in Sources */,
+				10000000000000000000000C /* MarkdownRenderTheme.swift in Sources */,
 				100000000000000000000009 /* NativeAttributedStringRenderer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

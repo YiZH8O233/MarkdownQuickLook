@@ -4,12 +4,13 @@ import QuickLookUI
 final class PreviewViewController: NSViewController, @MainActor QLPreviewingController {
     private let textView = NSTextView()
     private let scrollView = NSScrollView()
+    private let renderTheme = MarkdownRenderTheme.academicInkBlue
     private var previewGenerationGate = PreviewGenerationGate()
 
     override func loadView() {
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = true
-        scrollView.backgroundColor = .textBackgroundColor
+        scrollView.backgroundColor = renderTheme.backgroundColor
 
         textView.isEditable = false
         textView.isSelectable = true
@@ -48,7 +49,8 @@ final class PreviewViewController: NSViewController, @MainActor QLPreviewingCont
                     }
 
                     let renderer = NativeAttributedStringRenderer(
-                        imageResolver: LocalImageResolver(markdownFileURL: url)
+                        imageResolver: LocalImageResolver(markdownFileURL: url),
+                        theme: self.renderTheme
                     )
                     let attributed: NSAttributedString
                     if let blocks {

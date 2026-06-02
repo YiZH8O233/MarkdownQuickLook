@@ -70,6 +70,7 @@ First version supports a small, fast Markdown subset:
 - Block quotes
 - Ordered and unordered lists
 - Links as readable text
+- Academic Ink Blue semantic color theme
 - Local relative images
 - Fenced code blocks
 - Native table rendering

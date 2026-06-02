@@ -16,13 +16,16 @@ public struct ImageRenderOptions {
 public struct NativeAttributedStringRenderer {
     private let imageResolver: LocalImageResolver?
     private let imageOptions: ImageRenderOptions
+    public let theme: MarkdownRenderTheme
 
     public init(
         imageResolver: LocalImageResolver? = nil,
-        imageOptions: ImageRenderOptions = ImageRenderOptions()
+        imageOptions: ImageRenderOptions = ImageRenderOptions(),
+        theme: MarkdownRenderTheme = .academicInkBlue
     ) {
         self.imageResolver = imageResolver
         self.imageOptions = imageOptions
+        self.theme = theme
     }
 
     public func render(_ blocks: [MarkdownBlock]) -> NSAttributedString {
@@ -35,6 +38,8 @@ public struct NativeAttributedStringRenderer {
                     text,
                     font: .systemFont(ofSize: headingSize(level), weight: .semibold),
                     boldFont: .systemFont(ofSize: headingSize(level), weight: .bold),
+                    color: headingColor(level),
+                    boldColor: headingColor(level),
                     spacing: 10
                 ))
             case let .paragraph(text):
@@ -42,6 +47,8 @@ public struct NativeAttributedStringRenderer {
                     text,
                     font: .systemFont(ofSize: 14),
                     boldFont: .systemFont(ofSize: 14, weight: .semibold),
+                    color: theme.primaryTextColor,
+                    boldColor: theme.boldTextColor,
                     spacing: 8
                 ))
             case let .blockquote(text):
@@ -49,7 +56,8 @@ public struct NativeAttributedStringRenderer {
                     "> \(text)",
                     font: .systemFont(ofSize: 14),
                     boldFont: .systemFont(ofSize: 14, weight: .semibold),
-                    color: .secondaryLabelColor,
+                    color: theme.quoteAccentColor,
+                    boldColor: theme.quoteAccentColor,
                     spacing: 8
                 ))
             case let .unorderedList(items):
@@ -58,6 +66,8 @@ public struct NativeAttributedStringRenderer {
                         "- \(item)",
                         font: .systemFont(ofSize: 14),
                         boldFont: .systemFont(ofSize: 14, weight: .semibold),
+                        color: theme.primaryTextColor,
+                        boldColor: theme.boldTextColor,
                         spacing: 4
                     ))
                 }
@@ -68,6 +78,8 @@ public struct NativeAttributedStringRenderer {
                         "\(offset + 1). \(item)",
                         font: .systemFont(ofSize: 14),
                         boldFont: .systemFont(ofSize: 14, weight: .semibold),
+                        color: theme.primaryTextColor,
+                        boldColor: theme.boldTextColor,
                         spacing: 4
                     ))
                 }
@@ -78,7 +90,8 @@ public struct NativeAttributedStringRenderer {
                 result.append(textBlock(
                     code,
                     font: .monospacedSystemFont(ofSize: 13, weight: .regular),
-                    color: .labelColor,
+                    color: theme.primaryTextColor,
+                    backgroundColor: theme.codeBackgroundColor,
                     spacingAfter: 10
                 ))
             case .thematicBreak:
@@ -102,7 +115,7 @@ public struct NativeAttributedStringRenderer {
             string: plainPreviewText(text),
             attributes: [
                 .font: NSFont.systemFont(ofSize: 14),
-                .foregroundColor: NSColor.labelColor,
+                .foregroundColor: theme.primaryTextColor,
                 .paragraphStyle: paragraph
             ]
         )
@@ -182,6 +195,19 @@ private extension NativeAttributedStringRenderer {
         }
     }
 
+    func headingColor(_ level: Int) -> NSColor {
+        switch level {
+        case 1:
+            return theme.heading1TextColor
+        case 2:
+            return theme.heading2TextColor
+        case 3:
+            return theme.heading3TextColor
+        default:
+            return theme.heading2TextColor
+        }
+    }
+
     func line(
         _ text: String,
         font: NSFont,
@@ -206,7 +232,8 @@ private extension NativeAttributedStringRenderer {
         _ text: String,
         font: NSFont,
         boldFont: NSFont,
-        color: NSColor = .labelColor,
+        color: NSColor,
+        boldColor: NSColor,
         spacing: CGFloat
     ) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
@@ -218,6 +245,7 @@ private extension NativeAttributedStringRenderer {
             font: font,
             boldFont: boldFont,
             color: color,
+            boldColor: boldColor,
             paragraph: paragraph
         )
         result.append(NSAttributedString(string: "\n", attributes: [
@@ -233,6 +261,7 @@ private extension NativeAttributedStringRenderer {
         font: NSFont,
         boldFont: NSFont,
         color: NSColor,
+        boldColor: NSColor,
         paragraph: NSParagraphStyle
     ) -> NSMutableAttributedString {
         let result = NSMutableAttributedString()
@@ -251,7 +280,7 @@ private extension NativeAttributedStringRenderer {
                 string: String(text[index..<nextIndex]),
                 attributes: [
                     .font: isBold ? boldFont : font,
-                    .foregroundColor: color,
+                    .foregroundColor: isBold ? boldColor : color,
                     .paragraphStyle: paragraph
                 ]
             ))
@@ -265,18 +294,24 @@ private extension NativeAttributedStringRenderer {
         _ text: String,
         font: NSFont,
         color: NSColor = .labelColor,
+        backgroundColor: NSColor? = nil,
         spacingAfter: CGFloat
     ) -> NSAttributedString {
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = 2
 
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: color,
+            .paragraphStyle: paragraph
+        ]
+        if let backgroundColor {
+            attributes[.backgroundColor] = backgroundColor
+        }
+
         let result = NSMutableAttributedString(
             string: text + "\n",
-            attributes: [
-                .font: font,
-                .foregroundColor: color,
-                .paragraphStyle: paragraph
-            ]
+            attributes: attributes
         )
         let spacer = NSMutableParagraphStyle()
         spacer.paragraphSpacing = spacingAfter
@@ -365,12 +400,13 @@ private extension NativeAttributedStringRenderer {
                 displayText(cellText),
                 font: font,
                 boldFont: boldFont,
-                color: .labelColor,
+                color: isHeader ? theme.heading2TextColor : theme.primaryTextColor,
+                boldColor: isHeader ? theme.heading2TextColor : theme.boldTextColor,
                 paragraph: paragraph
             ))
             result.append(NSAttributedString(string: "\n", attributes: [
                 .font: font,
-                .foregroundColor: NSColor.labelColor,
+                .foregroundColor: isHeader ? theme.heading2TextColor : theme.primaryTextColor,
                 .paragraphStyle: paragraph
             ]))
         }
@@ -396,7 +432,7 @@ private extension NativeAttributedStringRenderer {
         block.setWidth(7, type: .absoluteValueType, for: .padding)
         block.verticalAlignment = .topAlignment
         if isHeader {
-            block.backgroundColor = NSColor.controlBackgroundColor
+            block.backgroundColor = theme.tableHeaderBackgroundColor
         }
 
         let paragraph = NSMutableParagraphStyle()
@@ -465,14 +501,14 @@ private extension NativeAttributedStringRenderer {
             return line(
                 "Remote image not loaded: \(remotePath)",
                 font: .systemFont(ofSize: 13),
-                color: .secondaryLabelColor,
+                color: theme.secondaryTextColor,
                 spacing: 8
             )
         case let .missing(missingPath):
             return line(
                 "Missing image: \(missingPath)",
                 font: .systemFont(ofSize: 13),
-                color: .secondaryLabelColor,
+                color: theme.secondaryTextColor,
                 spacing: 8
             )
         case let .local(url):
@@ -480,7 +516,7 @@ private extension NativeAttributedStringRenderer {
                 return line(
                     "Unsupported image: \(path)",
                     font: .systemFont(ofSize: 13),
-                    color: .secondaryLabelColor,
+                    color: theme.secondaryTextColor,
                     spacing: 8
                 )
             }
@@ -489,7 +525,7 @@ private extension NativeAttributedStringRenderer {
                 return line(
                     "Image too large: \(path)",
                     font: .systemFont(ofSize: 13),
-                    color: .secondaryLabelColor,
+                    color: theme.secondaryTextColor,
                     spacing: 8
                 )
             }
@@ -500,7 +536,7 @@ private extension NativeAttributedStringRenderer {
                 return line(
                     "Image could not be loaded: \(path)",
                     font: .systemFont(ofSize: 13),
-                    color: .secondaryLabelColor,
+                    color: theme.secondaryTextColor,
                     spacing: 8
                 )
             }
@@ -518,7 +554,7 @@ private extension NativeAttributedStringRenderer {
         return line(
             label,
             font: .systemFont(ofSize: 13),
-            color: .secondaryLabelColor,
+            color: theme.secondaryTextColor,
             spacing: 8
         )
     }
@@ -566,6 +602,7 @@ private extension NativeAttributedStringRenderer {
             result.append(line(
                 chart.title,
                 font: .systemFont(ofSize: 14, weight: .semibold),
+                color: theme.heading2TextColor,
                 spacing: 4
             ))
         }
@@ -593,7 +630,7 @@ private extension NativeAttributedStringRenderer {
         image.lockFocus()
         defer { image.unlockFocus() }
 
-        NSColor.textBackgroundColor.setFill()
+        theme.backgroundColor.setFill()
         NSRect(origin: .zero, size: size).fill()
 
         let plotRect = NSRect(x: 58, y: 54, width: size.width - 82, height: size.height - 82)
@@ -605,8 +642,8 @@ private extension NativeAttributedStringRenderer {
     }
 
     func drawChartGrid(in plotRect: NSRect, chart: MarkdownXYChart) {
-        let axisColor = NSColor.separatorColor
-        let gridColor = NSColor.separatorColor.withAlphaComponent(0.35)
+        let axisColor = theme.ruleColor
+        let gridColor = theme.subtleRuleColor
         let tickCount = 5
 
         for tick in 0...tickCount {
@@ -620,7 +657,7 @@ private extension NativeAttributedStringRenderer {
             path.stroke()
 
             let value = chart.yAxisRange.lowerBound + Double(fraction) * (chart.yAxisRange.upperBound - chart.yAxisRange.lowerBound)
-            drawChartText(formatTick(value), at: NSPoint(x: 8, y: y - 7), font: .systemFont(ofSize: 10), color: .secondaryLabelColor)
+            drawChartText(formatTick(value), at: NSPoint(x: 8, y: y - 7), font: .systemFont(ofSize: 10), color: theme.secondaryTextColor)
         }
 
         let yAxis = NSBezierPath()
@@ -631,7 +668,7 @@ private extension NativeAttributedStringRenderer {
         yAxis.stroke()
 
         if !chart.yAxisLabel.isEmpty {
-            drawChartText(chart.yAxisLabel, at: NSPoint(x: plotRect.minX, y: plotRect.maxY + 12), font: .systemFont(ofSize: 10, weight: .medium), color: .secondaryLabelColor)
+            drawChartText(chart.yAxisLabel, at: NSPoint(x: plotRect.minX, y: plotRect.maxY + 12), font: .systemFont(ofSize: 10, weight: .medium), color: theme.secondaryTextColor)
         }
     }
 
@@ -659,7 +696,7 @@ private extension NativeAttributedStringRenderer {
                     width: barWidth * 0.82,
                     height: max(abs(y - zeroY), 1)
                 )
-                NSColor.controlAccentColor.withAlphaComponent(0.82).setFill()
+                theme.chartColor.withAlphaComponent(0.86).setFill()
                 NSBezierPath(roundedRect: rect, xRadius: 2, yRadius: 2).fill()
             }
         }
@@ -673,7 +710,7 @@ private extension NativeAttributedStringRenderer {
                 )
                 index == 0 ? path.move(to: point) : path.line(to: point)
             }
-            NSColor.systemBlue.setStroke()
+            theme.chartColor.setStroke()
             path.lineWidth = 2
             path.stroke()
         }
@@ -689,7 +726,7 @@ private extension NativeAttributedStringRenderer {
             let label = chart.xAxisLabels[index]
             let labelSize = (label as NSString).size(withAttributes: [.font: font])
             let x = plotRect.minX + slotWidth * (CGFloat(index) + 0.5) - labelSize.width / 2
-            drawChartText(label, at: NSPoint(x: x, y: plotRect.minY - 24), font: font, color: .secondaryLabelColor)
+            drawChartText(label, at: NSPoint(x: x, y: plotRect.minY - 24), font: font, color: theme.secondaryTextColor)
         }
     }
 
