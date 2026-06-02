@@ -84,6 +84,26 @@ final class LineMarkdownParserTests: XCTestCase {
         ])
     }
 
+    func testParsesCommonListAndFenceVariants() {
+        let markdown = """
+        + Plus list item
+
+        1) Parenthesized ordered item
+
+        ~~~swift
+        let value = 42
+        ~~~
+        """
+
+        let blocks = LineMarkdownParser().parse(markdown)
+
+        XCTAssertEqual(blocks, [
+            .unorderedList(["Plus list item"]),
+            .orderedList(["Parenthesized ordered item"]),
+            .codeBlock(language: "swift", code: "let value = 42")
+        ])
+    }
+
     func testParsesSetextHeadingsWithoutExposingUnderlineMarkers() {
         let markdown = """
         Main title

@@ -103,6 +103,58 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertTrue(font.fontDescriptor.symbolicTraits.contains(.bold))
     }
 
+    func testRendersCommonInlineMarkdownStylesWithoutMarkers() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .paragraph("*斜体* _强调_ **加粗** __强烈__ ***重点*** `code` [官网](https://example.com) <https://example.com/a> https://example.com/b ~~删除~~")
+        ])
+
+        XCTAssertEqual(output.string, "斜体 强调 加粗 强烈 重点 code 官网 https://example.com/a https://example.com/b 删除\n")
+        XCTAssertFalse(output.string.contains("*"))
+        XCTAssertFalse(output.string.contains("_"))
+        XCTAssertFalse(output.string.contains("`"))
+        XCTAssertFalse(output.string.contains("["))
+        XCTAssertFalse(output.string.contains("]("))
+        XCTAssertFalse(output.string.contains("~~"))
+
+        let italicRange = (output.string as NSString).range(of: "斜体")
+        let italicFont = try XCTUnwrap(output.attribute(.font, at: italicRange.location, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(italicFont.fontDescriptor.symbolicTraits.contains(.italic))
+
+        let boldRange = (output.string as NSString).range(of: "加粗")
+        let boldFont = try XCTUnwrap(output.attribute(.font, at: boldRange.location, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(boldFont.fontDescriptor.symbolicTraits.contains(.bold))
+
+        let strongItalicRange = (output.string as NSString).range(of: "重点")
+        let strongItalicFont = try XCTUnwrap(output.attribute(.font, at: strongItalicRange.location, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(strongItalicFont.fontDescriptor.symbolicTraits.contains(.bold))
+        XCTAssertTrue(strongItalicFont.fontDescriptor.symbolicTraits.contains(.italic))
+
+        let codeRange = (output.string as NSString).range(of: "code")
+        let codeFont = try XCTUnwrap(output.attribute(.font, at: codeRange.location, effectiveRange: nil) as? NSFont)
+        XCTAssertTrue(codeFont.fontDescriptor.symbolicTraits.contains(.monoSpace))
+
+        let linkRange = (output.string as NSString).range(of: "官网")
+        XCTAssertNotNil(output.attribute(.link, at: linkRange.location, effectiveRange: nil))
+
+        let strikethroughRange = (output.string as NSString).range(of: "删除")
+        XCTAssertNotNil(output.attribute(.strikethroughStyle, at: strikethroughRange.location, effectiveRange: nil))
+    }
+
+    func testRendersTaskListMarkersAsNativeCheckboxGlyphs() {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .unorderedList(["[x] 已完成", "[ ] 未完成"])
+        ])
+
+        XCTAssertTrue(output.string.contains("☑ 已完成"))
+        XCTAssertTrue(output.string.contains("☐ 未完成"))
+        XCTAssertFalse(output.string.contains("[x]"))
+        XCTAssertFalse(output.string.contains("[ ]"))
+    }
+
     func testTablesUseNativeTextTableBlocks() throws {
         let renderer = NativeAttributedStringRenderer()
 

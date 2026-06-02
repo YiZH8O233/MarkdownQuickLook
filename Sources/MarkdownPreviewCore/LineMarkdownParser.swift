@@ -25,20 +25,19 @@ public struct LineMarkdownParser {
                 continue
             }
 
-            if trimmed.hasPrefix("```") {
-                let language = String(trimmed.dropFirst(3)).trimmingCharacters(in: .whitespaces)
+            if let fence = Self.parseFenceStart(trimmed) {
                 var codeLines: [String] = []
                 index += 1
-                while index < lines.count && !lines[index].trimmingCharacters(in: .whitespaces).hasPrefix("```") {
+                while index < lines.count && !Self.isFenceEnd(lines[index].trimmingCharacters(in: .whitespaces), fence: fence) {
                     codeLines.append(lines[index])
                     index += 1
                 }
                 if index < lines.count { index += 1 }
                 let code = codeLines.joined(separator: "\n")
-                if let chart = Self.parseXYChart(code, language: language) {
+                if let chart = Self.parseXYChart(code, language: fence.language) {
                     blocks.append(.xyChart(chart))
                 } else {
-                    blocks.append(.codeBlock(language: language.isEmpty ? nil : language, code: code))
+                    blocks.append(.codeBlock(language: fence.language.isEmpty ? nil : fence.language, code: code))
                 }
                 continue
             }
@@ -113,7 +112,7 @@ public struct LineMarkdownParser {
                     Self.isThematicBreak(next) ||
                     next.hasPrefix("#") ||
                     next.hasPrefix(">") ||
-                    next.hasPrefix("```") ||
+                    Self.parseFenceStart(next) != nil ||
                     next.hasPrefix("|") ||
                     Self.isUnorderedListItem(next) ||
                     Self.orderedListText(next) != nil ||
@@ -157,7 +156,7 @@ private extension LineMarkdownParser {
     }
 
     static func isUnorderedListItem(_ line: String) -> Bool {
-        line.hasPrefix("- ") || line.hasPrefix("* ")
+        line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ")
     }
 
     static func isThematicBreak(_ line: String) -> Bool {
@@ -184,12 +183,26 @@ private extension LineMarkdownParser {
     }
 
     static func orderedListText(_ line: String) -> String? {
-        guard let dot = line.firstIndex(of: ".") else { return nil }
-        let number = line[..<dot]
+        guard let marker = line.firstIndex(where: { $0 == "." || $0 == ")" }) else { return nil }
+        let number = line[..<marker]
         guard !number.isEmpty, number.allSatisfy(\.isNumber) else { return nil }
-        let textStart = line.index(after: dot)
+        let textStart = line.index(after: marker)
         guard textStart < line.endIndex, line[textStart] == " " else { return nil }
         return String(line[line.index(after: textStart)...])
+    }
+
+    static func parseFenceStart(_ line: String) -> (marker: Character, count: Int, language: String)? {
+        guard let marker = line.first, marker == "`" || marker == "~" else { return nil }
+        let count = line.prefix(while: { $0 == marker }).count
+        guard count >= 3 else { return nil }
+        let language = String(line.dropFirst(count)).trimmingCharacters(in: .whitespaces)
+        return (marker, count, language)
+    }
+
+    static func isFenceEnd(_ line: String, fence: (marker: Character, count: Int, language: String)) -> Bool {
+        let markerCount = line.prefix(while: { $0 == fence.marker }).count
+        guard markerCount >= fence.count else { return false }
+        return line.dropFirst(markerCount).allSatisfy(\.isWhitespace)
     }
 
     static func parseTable(_ lines: [String]) -> MarkdownTable? {

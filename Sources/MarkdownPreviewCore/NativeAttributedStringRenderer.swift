@@ -13,6 +13,12 @@ public struct ImageRenderOptions {
     }
 }
 
+private struct InlineStyle {
+    var bold = false
+    var italic = false
+    var strikethrough = false
+}
+
 public struct NativeAttributedStringRenderer {
     private let imageResolver: LocalImageResolver?
     private let imageOptions: ImageRenderOptions
@@ -63,7 +69,7 @@ public struct NativeAttributedStringRenderer {
             case let .unorderedList(items):
                 for item in items {
                     result.append(markdownLine(
-                        "- \(item)",
+                        unorderedListDisplayText(item),
                         font: .systemFont(ofSize: 14),
                         boldFont: .systemFont(ofSize: 14, weight: .semibold),
                         color: theme.primaryTextColor,
@@ -133,6 +139,14 @@ private extension NativeAttributedStringRenderer {
         }
         output = output.replacingOccurrences(of: "\\*\\*", with: "**")
         output = output.replacingOccurrences(of: "\\_\\_", with: "__")
+        output = output.replacingOccurrences(of: "\\*", with: "*")
+        output = output.replacingOccurrences(of: "\\_", with: "_")
+        output = output.replacingOccurrences(of: "\\~", with: "~")
+        output = output.replacingOccurrences(of: "\\`", with: "`")
+        output = output.replacingOccurrences(of: "\\[", with: "[")
+        output = output.replacingOccurrences(of: "\\]", with: "]")
+        output = output.replacingOccurrences(of: "\\(", with: "(")
+        output = output.replacingOccurrences(of: "\\)", with: ")")
         output = output.replacingOccurrences(of: " ()", with: "")
         output = output.replacingOccurrences(of: "()", with: "")
         return output
@@ -208,6 +222,16 @@ private extension NativeAttributedStringRenderer {
         }
     }
 
+    func unorderedListDisplayText(_ item: String) -> String {
+        if item.hasPrefix("[x] ") || item.hasPrefix("[X] ") {
+            return "☑ \(item.dropFirst(4))"
+        }
+        if item.hasPrefix("[ ] ") {
+            return "☐ \(item.dropFirst(4))"
+        }
+        return "- \(item)"
+    }
+
     func line(
         _ text: String,
         font: NSFont,
@@ -265,29 +289,354 @@ private extension NativeAttributedStringRenderer {
         paragraph: NSParagraphStyle
     ) -> NSMutableAttributedString {
         let result = NSMutableAttributedString()
+        appendInlineMarkdown(
+            text,
+            to: result,
+            style: InlineStyle(),
+            font: font,
+            boldFont: boldFont,
+            italicFont: italicFont(for: font),
+            boldItalicFont: italicFont(for: boldFont),
+            color: color,
+            boldColor: boldColor,
+            paragraph: paragraph
+        )
+        return result
+    }
+
+    func appendInlineMarkdown(
+        _ text: String,
+        to result: NSMutableAttributedString,
+        style: InlineStyle,
+        font: NSFont,
+        boldFont: NSFont,
+        italicFont: NSFont,
+        boldItalicFont: NSFont,
+        color: NSColor,
+        boldColor: NSColor,
+        paragraph: NSParagraphStyle
+    ) {
         var index = text.startIndex
-        var isBold = false
 
         while index < text.endIndex {
-            if text[index...].hasPrefix("**") || text[index...].hasPrefix("__") {
-                index = text.index(index, offsetBy: 2)
-                isBold.toggle()
+            if text[index] == "`",
+               let closing = findClosing("`", in: text, after: text.index(after: index)) {
+                appendCodeText(
+                    String(text[text.index(after: index)..<closing]),
+                    to: result,
+                    paragraph: paragraph
+                )
+                index = text.index(after: closing)
+                continue
+            }
+
+            if let link = parseInlineLink(in: text, at: index) {
+                appendLinkedText(
+                    link.label,
+                    destination: link.destination,
+                    to: result,
+                    style: style,
+                    font: font,
+                    boldFont: boldFont,
+                    italicFont: italicFont,
+                    boldItalicFont: boldItalicFont,
+                    paragraph: paragraph
+                )
+                index = link.end
+                continue
+            }
+
+            if let link = parseAngleAutolink(in: text, at: index) {
+                appendLinkedText(
+                    link.label,
+                    destination: link.destination,
+                    to: result,
+                    style: style,
+                    font: font,
+                    boldFont: boldFont,
+                    italicFont: italicFont,
+                    boldItalicFont: boldItalicFont,
+                    paragraph: paragraph
+                )
+                index = link.end
+                continue
+            }
+
+            if let link = parseBareURL(in: text, at: index) {
+                appendLinkedText(
+                    link.label,
+                    destination: link.destination,
+                    to: result,
+                    style: style,
+                    font: font,
+                    boldFont: boldFont,
+                    italicFont: italicFont,
+                    boldItalicFont: boldItalicFont,
+                    paragraph: paragraph
+                )
+                index = link.end
+                continue
+            }
+
+            if let marker = inlineMarker(in: text, at: index),
+               let closing = findClosing(marker.literal, in: text, after: text.index(index, offsetBy: marker.literal.count)) {
+                var nextStyle = style
+                nextStyle.bold = nextStyle.bold || marker.bold
+                nextStyle.italic = nextStyle.italic || marker.italic
+                nextStyle.strikethrough = nextStyle.strikethrough || marker.strikethrough
+
+                appendInlineMarkdown(
+                    String(text[text.index(index, offsetBy: marker.literal.count)..<closing]),
+                    to: result,
+                    style: nextStyle,
+                    font: font,
+                    boldFont: boldFont,
+                    italicFont: italicFont,
+                    boldItalicFont: boldItalicFont,
+                    color: color,
+                    boldColor: boldColor,
+                    paragraph: paragraph
+                )
+                index = text.index(closing, offsetBy: marker.literal.count)
                 continue
             }
 
             let nextIndex = text.index(after: index)
-            result.append(NSAttributedString(
-                string: String(text[index..<nextIndex]),
-                attributes: [
-                    .font: isBold ? boldFont : font,
-                    .foregroundColor: isBold ? boldColor : color,
-                    .paragraphStyle: paragraph
-                ]
-            ))
+            appendStyledText(
+                String(text[index..<nextIndex]),
+                to: result,
+                style: style,
+                font: font,
+                boldFont: boldFont,
+                italicFont: italicFont,
+                boldItalicFont: boldItalicFont,
+                color: color,
+                boldColor: boldColor,
+                paragraph: paragraph
+            )
             index = nextIndex
         }
+    }
 
-        return result
+    func appendStyledText(
+        _ text: String,
+        to result: NSMutableAttributedString,
+        style: InlineStyle,
+        font: NSFont,
+        boldFont: NSFont,
+        italicFont: NSFont,
+        boldItalicFont: NSFont,
+        color: NSColor,
+        boldColor: NSColor,
+        paragraph: NSParagraphStyle
+    ) {
+        result.append(NSAttributedString(
+            string: text,
+            attributes: attributes(
+                for: style,
+                font: font,
+                boldFont: boldFont,
+                italicFont: italicFont,
+                boldItalicFont: boldItalicFont,
+                color: color,
+                boldColor: boldColor,
+                paragraph: paragraph
+            )
+        ))
+    }
+
+    func appendCodeText(_ text: String, to result: NSMutableAttributedString, paragraph: NSParagraphStyle) {
+        result.append(NSAttributedString(
+            string: text,
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
+                .foregroundColor: theme.primaryTextColor,
+                .backgroundColor: theme.codeBackgroundColor,
+                .paragraphStyle: paragraph
+            ]
+        ))
+    }
+
+    func appendLinkedText(
+        _ text: String,
+        destination: String,
+        to result: NSMutableAttributedString,
+        style: InlineStyle,
+        font: NSFont,
+        boldFont: NSFont,
+        italicFont: NSFont,
+        boldItalicFont: NSFont,
+        paragraph: NSParagraphStyle
+    ) {
+        var attributes = attributes(
+            for: style,
+            font: font,
+            boldFont: boldFont,
+            italicFont: italicFont,
+            boldItalicFont: boldItalicFont,
+            color: theme.quoteAccentColor,
+            boldColor: theme.quoteAccentColor,
+            paragraph: paragraph
+        )
+        attributes[.link] = destination
+        attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
+        result.append(NSAttributedString(string: text, attributes: attributes))
+    }
+
+    func attributes(
+        for style: InlineStyle,
+        font: NSFont,
+        boldFont: NSFont,
+        italicFont: NSFont,
+        boldItalicFont: NSFont,
+        color: NSColor,
+        boldColor: NSColor,
+        paragraph: NSParagraphStyle
+    ) -> [NSAttributedString.Key: Any] {
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: resolvedFont(
+                for: style,
+                font: font,
+                boldFont: boldFont,
+                italicFont: italicFont,
+                boldItalicFont: boldItalicFont
+            ),
+            .foregroundColor: style.bold ? boldColor : color,
+            .paragraphStyle: paragraph
+        ]
+        if style.strikethrough {
+            attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
+        }
+        return attributes
+    }
+
+    func resolvedFont(
+        for style: InlineStyle,
+        font: NSFont,
+        boldFont: NSFont,
+        italicFont: NSFont,
+        boldItalicFont: NSFont
+    ) -> NSFont {
+        if style.bold && style.italic { return boldItalicFont }
+        if style.bold { return boldFont }
+        if style.italic { return italicFont }
+        return font
+    }
+
+    func italicFont(for font: NSFont) -> NSFont {
+        NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
+    }
+
+    func inlineMarker(in text: String, at index: String.Index) -> (literal: String, bold: Bool, italic: Bool, strikethrough: Bool)? {
+        let markers: [(String, Bool, Bool, Bool)] = [
+            ("***", true, true, false),
+            ("___", true, true, false),
+            ("**", true, false, false),
+            ("__", true, false, false),
+            ("~~", false, false, true),
+            ("*", false, true, false),
+            ("_", false, true, false)
+        ]
+
+        for marker in markers where matchesMarker(marker.0, in: text, at: index) {
+            return marker
+        }
+        return nil
+    }
+
+    func matchesMarker(_ marker: String, in text: String, at index: String.Index) -> Bool {
+        guard text[index...].hasPrefix(marker) else { return false }
+        if marker == "*" || marker == "_" {
+            if text[index...].hasPrefix(marker + marker) { return false }
+            if index > text.startIndex {
+                let previous = text[text.index(before: index)]
+                if String(previous) == marker { return false }
+            }
+            let next = text.index(after: index)
+            if next < text.endIndex, String(text[next]) == marker { return false }
+            if marker == "_",
+               index > text.startIndex,
+               next < text.endIndex,
+               text[text.index(before: index)].isLetter || text[text.index(before: index)].isNumber,
+               text[next].isLetter || text[next].isNumber {
+                return false
+            }
+        }
+        return true
+    }
+
+    func findClosing(_ marker: String, in text: String, after start: String.Index) -> String.Index? {
+        var index = start
+        while index < text.endIndex {
+            if text[index] == "\\" {
+                index = text.index(after: index)
+                if index < text.endIndex {
+                    index = text.index(after: index)
+                }
+                continue
+            }
+            if matchesMarker(marker, in: text, at: index) {
+                return index
+            }
+            index = text.index(after: index)
+        }
+        return nil
+    }
+
+    func parseInlineLink(in text: String, at index: String.Index) -> (label: String, destination: String, end: String.Index)? {
+        guard text[index] == "[" else { return nil }
+        guard let closeLabel = text[index...].firstIndex(of: "]") else { return nil }
+        let openDestination = text.index(after: closeLabel)
+        guard openDestination < text.endIndex, text[openDestination] == "(" else { return nil }
+        guard let closeDestination = text[openDestination...].firstIndex(of: ")") else { return nil }
+
+        let labelStart = text.index(after: index)
+        let destinationStart = text.index(after: openDestination)
+        let label = String(text[labelStart..<closeLabel])
+        let destination = String(text[destinationStart..<closeDestination])
+        guard !label.isEmpty, !destination.isEmpty else { return nil }
+        return (label, destination, text.index(after: closeDestination))
+    }
+
+    func parseAngleAutolink(in text: String, at index: String.Index) -> (label: String, destination: String, end: String.Index)? {
+        guard text[index] == "<",
+              let close = text[index...].firstIndex(of: ">") else {
+            return nil
+        }
+        let start = text.index(after: index)
+        let label = String(text[start..<close])
+        guard isAutolink(label) else { return nil }
+        return (label, label, text.index(after: close))
+    }
+
+    func parseBareURL(in text: String, at index: String.Index) -> (label: String, destination: String, end: String.Index)? {
+        guard text[index...].hasPrefix("http://") || text[index...].hasPrefix("https://") else {
+            return nil
+        }
+
+        var end = index
+        while end < text.endIndex, !text[end].isWhitespace {
+            end = text.index(after: end)
+        }
+
+        var trimmedEnd = end
+        while trimmedEnd > index {
+            let previous = text[text.index(before: trimmedEnd)]
+            if ".,;:)]}".contains(previous) {
+                trimmedEnd = text.index(before: trimmedEnd)
+            } else {
+                break
+            }
+        }
+        guard trimmedEnd > index else { return nil }
+        let label = String(text[index..<trimmedEnd])
+        return (label, label, trimmedEnd)
+    }
+
+    func isAutolink(_ text: String) -> Bool {
+        text.hasPrefix("http://") ||
+            text.hasPrefix("https://") ||
+            (text.contains("@") && !text.contains(" "))
     }
 
     func textBlock(
@@ -466,9 +815,15 @@ private extension NativeAttributedStringRenderer {
     }
 
     func measuredCellWidth(_ text: String, font: NSFont) -> CGFloat {
-        let plainText = displayText(text)
-            .replacingOccurrences(of: "**", with: "")
-            .replacingOccurrences(of: "__", with: "")
+        let paragraph = NSMutableParagraphStyle()
+        let plainText = inlineMarkdown(
+            displayText(text),
+            font: font,
+            boldFont: font,
+            color: theme.primaryTextColor,
+            boldColor: theme.primaryTextColor,
+            paragraph: paragraph
+        ).string
         return (plainText as NSString).size(withAttributes: [.font: font]).width
     }
 

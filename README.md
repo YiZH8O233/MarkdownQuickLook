@@ -68,11 +68,11 @@ First version supports a small, fast Markdown subset:
 - Headings
 - Paragraphs
 - Block quotes
-- Ordered and unordered lists
-- Links as readable text
+- Ordered, unordered, and task lists
+- Bold, italic, bold italic, inline code, links, autolinks, bare URLs, and strikethrough
 - Academic Ink Blue semantic color theme
 - Local relative images
-- Fenced code blocks
+- Fenced code blocks with backticks or tildes
 - Native table rendering
 - Mermaid `xychart-beta` bar and line charts
 
