@@ -1211,13 +1211,16 @@ private extension NativeAttributedStringRenderer {
             let y = topY - CGFloat(index) * rowHeight
             chartPaletteColor(index).setFill()
             NSBezierPath(ovalIn: NSRect(x: lineX - 5, y: y - 5, width: 10, height: 10)).fill()
-            drawChartText(period.label, at: NSPoint(x: 28, y: y - 8), font: .systemFont(ofSize: 12, weight: .semibold), color: theme.heading2TextColor)
+            let labelFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+            let eventFont = NSFont.systemFont(ofSize: 11)
+            let textBaselineY = y - 9
+            drawChartText(period.label, at: NSPoint(x: 28, y: textBaselineY), font: labelFont, color: theme.heading2TextColor)
 
             let eventText = period.events.joined(separator: "  /  ")
             drawWrappedChartText(
                 eventText,
-                in: NSRect(x: 154, y: y - 21, width: 540, height: 42),
-                font: .systemFont(ofSize: 11),
+                in: NSRect(x: 154, y: textBaselineY - 13, width: 540, height: 32),
+                font: eventFont,
                 color: theme.primaryTextColor
             )
         }
