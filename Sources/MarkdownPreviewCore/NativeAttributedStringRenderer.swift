@@ -106,6 +106,12 @@ public struct NativeAttributedStringRenderer {
                 result.append(tableBlock(table))
             case let .xyChart(chart):
                 result.append(xyChartBlock(chart))
+            case let .pieChart(chart):
+                result.append(pieChartBlock(chart))
+            case let .quadrantChart(chart):
+                result.append(quadrantChartBlock(chart))
+            case let .timeline(timeline):
+                result.append(timelineBlock(timeline))
             }
         }
 
@@ -1041,6 +1047,184 @@ private extension NativeAttributedStringRenderer {
         return image
     }
 
+    func pieChartBlock(_ chart: MarkdownPieChart) -> NSAttributedString {
+        chartBlock(title: chart.title, image: pieChartImage(for: chart))
+    }
+
+    func quadrantChartBlock(_ chart: MarkdownQuadrantChart) -> NSAttributedString {
+        chartBlock(title: chart.title, image: quadrantChartImage(for: chart))
+    }
+
+    func timelineBlock(_ timeline: MarkdownTimeline) -> NSAttributedString {
+        chartBlock(title: timeline.title, image: timelineImage(for: timeline))
+    }
+
+    func chartBlock(title: String, image: NSImage) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+
+        if !title.isEmpty {
+            result.append(line(
+                title,
+                font: .systemFont(ofSize: 14, weight: .semibold),
+                color: theme.heading2TextColor,
+                spacing: 4
+            ))
+        }
+
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0, y: -4, width: image.size.width, height: image.size.height)
+        result.append(NSAttributedString(attachment: attachment))
+
+        let spacer = NSMutableParagraphStyle()
+        spacer.paragraphSpacing = 12
+        result.append(NSAttributedString(string: "\n", attributes: [
+            .font: NSFont.systemFont(ofSize: 1),
+            .paragraphStyle: spacer
+        ]))
+        return result
+    }
+
+    func pieChartImage(for chart: MarkdownPieChart) -> NSImage {
+        let size = NSSize(width: 720, height: 320)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        theme.backgroundColor.setFill()
+        NSRect(origin: .zero, size: size).fill()
+
+        let total = chart.slices.map(\.value).reduce(0, +)
+        guard total > 0 else { return image }
+
+        let center = NSPoint(x: 190, y: 160)
+        let radius: CGFloat = 102
+        var startAngle: CGFloat = 90
+
+        for (index, slice) in chart.slices.enumerated() {
+            let sweep = CGFloat(slice.value / total) * 360
+            let endAngle = startAngle - sweep
+            let path = NSBezierPath()
+            path.move(to: center)
+            path.appendArc(
+                withCenter: center,
+                radius: radius,
+                startAngle: startAngle,
+                endAngle: endAngle,
+                clockwise: true
+            )
+            path.close()
+            chartPaletteColor(index).setFill()
+            path.fill()
+
+            if chart.showData, sweep > 18 {
+                let midAngle = (startAngle + endAngle) / 2 * .pi / 180
+                let labelPoint = NSPoint(
+                    x: center.x + cos(midAngle) * radius * 0.58 - 16,
+                    y: center.y + sin(midAngle) * radius * 0.58 - 7
+                )
+                drawChartText(formatPercentage(slice.value / total), at: labelPoint, font: .systemFont(ofSize: 10, weight: .medium), color: theme.backgroundColor)
+            }
+
+            startAngle = endAngle
+        }
+
+        drawLegend(
+            items: chart.slices.enumerated().map { index, slice in
+                "\(slice.label)  \(formatValue(slice.value))"
+            },
+            colors: chart.slices.indices.map(chartPaletteColor),
+            at: NSPoint(x: 360, y: 238)
+        )
+
+        return image
+    }
+
+    func quadrantChartImage(for chart: MarkdownQuadrantChart) -> NSImage {
+        let size = NSSize(width: 720, height: 380)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        theme.backgroundColor.setFill()
+        NSRect(origin: .zero, size: size).fill()
+
+        let plotRect = NSRect(x: 88, y: 56, width: 440, height: 280)
+        theme.subtleRuleColor.withAlphaComponent(0.45).setFill()
+        NSRect(x: plotRect.minX, y: plotRect.midY, width: plotRect.width / 2, height: plotRect.height / 2).fill()
+        NSRect(x: plotRect.midX, y: plotRect.minY, width: plotRect.width / 2, height: plotRect.height / 2).fill()
+
+        theme.ruleColor.setStroke()
+        let border = NSBezierPath(rect: plotRect)
+        border.lineWidth = 1
+        border.stroke()
+
+        let vertical = NSBezierPath()
+        vertical.move(to: NSPoint(x: plotRect.midX, y: plotRect.minY))
+        vertical.line(to: NSPoint(x: plotRect.midX, y: plotRect.maxY))
+        vertical.stroke()
+
+        let horizontal = NSBezierPath()
+        horizontal.move(to: NSPoint(x: plotRect.minX, y: plotRect.midY))
+        horizontal.line(to: NSPoint(x: plotRect.maxX, y: plotRect.midY))
+        horizontal.stroke()
+
+        drawQuadrantLabels(chart.quadrants, in: plotRect)
+        drawChartText(chart.xAxisStart, at: NSPoint(x: plotRect.minX, y: 24), font: .systemFont(ofSize: 10), color: theme.secondaryTextColor)
+        drawChartText(chart.xAxisEnd, at: NSPoint(x: plotRect.maxX - 96, y: 24), font: .systemFont(ofSize: 10), color: theme.secondaryTextColor)
+        drawChartText(chart.yAxisStart, at: NSPoint(x: 10, y: plotRect.minY), font: .systemFont(ofSize: 10), color: theme.secondaryTextColor)
+        drawChartText(chart.yAxisEnd, at: NSPoint(x: 10, y: plotRect.maxY - 14), font: .systemFont(ofSize: 10), color: theme.secondaryTextColor)
+
+        for (index, point) in chart.points.enumerated() {
+            let x = plotRect.minX + CGFloat(point.x) * plotRect.width
+            let y = plotRect.minY + CGFloat(point.y) * plotRect.height
+            let dotRect = NSRect(x: x - 4, y: y - 4, width: 8, height: 8)
+            chartPaletteColor(index).setFill()
+            NSBezierPath(ovalIn: dotRect).fill()
+            drawChartText(point.label, at: NSPoint(x: x + 7, y: y - 6), font: .systemFont(ofSize: 9), color: theme.primaryTextColor)
+        }
+
+        return image
+    }
+
+    func timelineImage(for timeline: MarkdownTimeline) -> NSImage {
+        let rowHeight: CGFloat = 52
+        let size = NSSize(width: 720, height: max(260, CGFloat(timeline.periods.count) * rowHeight + 42))
+        let image = NSImage(size: size)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        theme.backgroundColor.setFill()
+        NSRect(origin: .zero, size: size).fill()
+
+        let lineX: CGFloat = 130
+        let topY = size.height - 34
+        let bottomY: CGFloat = 34
+        theme.ruleColor.setStroke()
+        let spine = NSBezierPath()
+        spine.move(to: NSPoint(x: lineX, y: bottomY))
+        spine.line(to: NSPoint(x: lineX, y: topY))
+        spine.lineWidth = 1.3
+        spine.stroke()
+
+        for (index, period) in timeline.periods.enumerated() {
+            let y = topY - CGFloat(index) * rowHeight
+            chartPaletteColor(index).setFill()
+            NSBezierPath(ovalIn: NSRect(x: lineX - 5, y: y - 5, width: 10, height: 10)).fill()
+            drawChartText(period.label, at: NSPoint(x: 28, y: y - 8), font: .systemFont(ofSize: 12, weight: .semibold), color: theme.heading2TextColor)
+
+            let eventText = period.events.joined(separator: "  /  ")
+            drawWrappedChartText(
+                eventText,
+                in: NSRect(x: 154, y: y - 21, width: 540, height: 42),
+                font: .systemFont(ofSize: 11),
+                color: theme.primaryTextColor
+            )
+        }
+
+        return image
+    }
+
     func drawChartGrid(in plotRect: NSRect, chart: MarkdownXYChart) {
         let axisColor = theme.ruleColor
         let gridColor = theme.subtleRuleColor
@@ -1138,6 +1322,64 @@ private extension NativeAttributedStringRenderer {
                 .foregroundColor: color
             ]
         )
+    }
+
+    func drawWrappedChartText(_ text: String, in rect: NSRect, font: NSFont, color: NSColor) {
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineBreakMode = .byWordWrapping
+        paragraph.lineSpacing = 2
+        (text as NSString).draw(
+            in: rect,
+            withAttributes: [
+                .font: font,
+                .foregroundColor: color,
+                .paragraphStyle: paragraph
+            ]
+        )
+    }
+
+    func drawLegend(items: [String], colors: [NSColor], at origin: NSPoint) {
+        for (index, item) in items.enumerated() {
+            let y = origin.y - CGFloat(index) * 28
+            colors[index % max(colors.count, 1)].setFill()
+            NSBezierPath(roundedRect: NSRect(x: origin.x, y: y - 2, width: 12, height: 12), xRadius: 2, yRadius: 2).fill()
+            drawChartText(item, at: NSPoint(x: origin.x + 20, y: y - 4), font: .systemFont(ofSize: 11), color: theme.primaryTextColor)
+        }
+    }
+
+    func drawQuadrantLabels(_ labels: [String], in plotRect: NSRect) {
+        let positions = [
+            NSPoint(x: plotRect.midX + 12, y: plotRect.maxY - 24),
+            NSPoint(x: plotRect.minX + 12, y: plotRect.maxY - 24),
+            NSPoint(x: plotRect.minX + 12, y: plotRect.midY - 24),
+            NSPoint(x: plotRect.midX + 12, y: plotRect.midY - 24)
+        ]
+
+        for index in 0..<min(labels.count, positions.count) where !labels[index].isEmpty {
+            drawChartText(labels[index], at: positions[index], font: .systemFont(ofSize: 11, weight: .medium), color: theme.secondaryTextColor)
+        }
+    }
+
+    func chartPaletteColor(_ index: Int) -> NSColor {
+        let colors = [
+            theme.chartColor,
+            theme.quoteAccentColor,
+            theme.heading2TextColor,
+            theme.boldTextColor,
+            theme.secondaryTextColor
+        ]
+        return colors[index % colors.count]
+    }
+
+    func formatPercentage(_ value: Double) -> String {
+        "\(Int(round(value * 100)))%"
+    }
+
+    func formatValue(_ value: Double) -> String {
+        if value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(format: "%.1f", value)
     }
 
     func yPosition(for value: Double, in plotRect: NSRect, range: ClosedRange<Double>) -> CGFloat {

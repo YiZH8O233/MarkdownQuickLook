@@ -429,6 +429,76 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         XCTAssertGreaterThan(attachment.bounds.height, 250)
     }
 
+    func testRendersMermaidPieChartsAsNativeAttachments() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .pieChart(MarkdownPieChart(
+                title: "2025年下半年新增AI应用触达形态占比",
+                showData: true,
+                slices: [
+                    .init(label: "插件 / In-App AI", value: 81.5),
+                    .init(label: "PC网页应用", value: 10.7),
+                    .init(label: "原生App", value: 7.8)
+                ]
+            ))
+        ])
+
+        XCTAssertTrue(output.string.contains("2025年下半年新增AI应用触达形态占比"))
+        XCTAssertFalse(output.string.contains("pie showData"))
+        XCTAssertFalse(output.string.contains("插件 / In-App AI\" :"))
+        let attachment = try XCTUnwrap(firstAttachment(in: output))
+        XCTAssertGreaterThan(attachment.bounds.width, 500)
+        XCTAssertGreaterThan(attachment.bounds.height, 250)
+    }
+
+    func testRendersMermaidQuadrantChartsAsNativeAttachments() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .quadrantChart(MarkdownQuadrantChart(
+                title: "重点产品竞争二维矩阵",
+                xAxisStart: "C端分发能力弱",
+                xAxisEnd: "C端分发能力强",
+                yAxisStart: "企业落地深度弱",
+                yAxisEnd: "企业落地深度强",
+                quadrants: ["平台双强", "企业优先", "垂直/单点", "流量优先"],
+                points: [
+                    .init(label: "ChatGPT", x: 0.92, y: 0.80),
+                    .init(label: "Gemini", x: 0.88, y: 0.86)
+                ]
+            ))
+        ])
+
+        XCTAssertTrue(output.string.contains("重点产品竞争二维矩阵"))
+        XCTAssertFalse(output.string.contains("quadrantChart"))
+        XCTAssertFalse(output.string.contains("ChatGPT: ["))
+        let attachment = try XCTUnwrap(firstAttachment(in: output))
+        XCTAssertGreaterThan(attachment.bounds.width, 500)
+        XCTAssertGreaterThan(attachment.bounds.height, 250)
+    }
+
+    func testRendersMermaidTimelinesAsNativeAttachments() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .timeline(MarkdownTimeline(
+                title: "重点产品技术路线与发布节点",
+                periods: [
+                    .init(label: "2024-Q1", events: ["Gemini 1.5公开MoE与长上下文", "Claude 3家族发布"]),
+                    .init(label: "2024-Q2", events: ["元宝App上线"])
+                ]
+            ))
+        ])
+
+        XCTAssertTrue(output.string.contains("重点产品技术路线与发布节点"))
+        XCTAssertFalse(output.string.contains("timeline"))
+        XCTAssertFalse(output.string.contains("2024-Q1 :"))
+        let attachment = try XCTUnwrap(firstAttachment(in: output))
+        XCTAssertGreaterThan(attachment.bounds.width, 500)
+        XCTAssertGreaterThan(attachment.bounds.height, 200)
+    }
+
     private func tableBlocks(in output: NSAttributedString) -> [NSTextTableBlock] {
         var blocks: [NSTextTableBlock] = []
         output.enumerateAttribute(

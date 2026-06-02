@@ -59,6 +59,88 @@ public struct MarkdownXYChart: Equatable {
     }
 }
 
+public struct MarkdownPieChart: Equatable {
+    public struct Slice: Equatable {
+        public let label: String
+        public let value: Double
+
+        public init(label: String, value: Double) {
+            self.label = label
+            self.value = value
+        }
+    }
+
+    public let title: String
+    public let showData: Bool
+    public let slices: [Slice]
+
+    public init(title: String, showData: Bool, slices: [Slice]) {
+        self.title = title
+        self.showData = showData
+        self.slices = slices
+    }
+}
+
+public struct MarkdownQuadrantChart: Equatable {
+    public struct Point: Equatable {
+        public let label: String
+        public let x: Double
+        public let y: Double
+
+        public init(label: String, x: Double, y: Double) {
+            self.label = label
+            self.x = x
+            self.y = y
+        }
+    }
+
+    public let title: String
+    public let xAxisStart: String
+    public let xAxisEnd: String
+    public let yAxisStart: String
+    public let yAxisEnd: String
+    public let quadrants: [String]
+    public let points: [Point]
+
+    public init(
+        title: String,
+        xAxisStart: String,
+        xAxisEnd: String,
+        yAxisStart: String,
+        yAxisEnd: String,
+        quadrants: [String],
+        points: [Point]
+    ) {
+        self.title = title
+        self.xAxisStart = xAxisStart
+        self.xAxisEnd = xAxisEnd
+        self.yAxisStart = yAxisStart
+        self.yAxisEnd = yAxisEnd
+        self.quadrants = quadrants
+        self.points = points
+    }
+}
+
+public struct MarkdownTimeline: Equatable {
+    public struct Period: Equatable {
+        public let label: String
+        public let events: [String]
+
+        public init(label: String, events: [String]) {
+            self.label = label
+            self.events = events
+        }
+    }
+
+    public let title: String
+    public let periods: [Period]
+
+    public init(title: String, periods: [Period]) {
+        self.title = title
+        self.periods = periods
+    }
+}
+
 public enum MarkdownBlock: Equatable {
     case heading(level: Int, text: String)
     case paragraph(String)
@@ -70,4 +152,7 @@ public enum MarkdownBlock: Equatable {
     case thematicBreak
     case table(MarkdownTable)
     case xyChart(MarkdownXYChart)
+    case pieChart(MarkdownPieChart)
+    case quadrantChart(MarkdownQuadrantChart)
+    case timeline(MarkdownTimeline)
 }

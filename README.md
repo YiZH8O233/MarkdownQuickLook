@@ -74,7 +74,7 @@ First version supports a small, fast Markdown subset:
 - Local relative images
 - Fenced code blocks with backticks or tildes
 - Native table rendering
-- Mermaid `xychart-beta` bar and line charts
+- Mermaid `xychart-beta`, `pie`, `quadrantChart`, and `timeline` charts
 
 Remote images are not loaded. URLs such as `https://example.com/image.png` render as safe text instead of making a network request. Local images are constrained by file size and display size so Finder previews stay responsive.
 

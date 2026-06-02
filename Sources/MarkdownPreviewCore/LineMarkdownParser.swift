@@ -36,6 +36,12 @@ public struct LineMarkdownParser {
                 let code = codeLines.joined(separator: "\n")
                 if let chart = Self.parseXYChart(code, language: fence.language) {
                     blocks.append(.xyChart(chart))
+                } else if let chart = Self.parsePieChart(code, language: fence.language) {
+                    blocks.append(.pieChart(chart))
+                } else if let chart = Self.parseQuadrantChart(code, language: fence.language) {
+                    blocks.append(.quadrantChart(chart))
+                } else if let timeline = Self.parseTimeline(code, language: fence.language) {
+                    blocks.append(.timeline(timeline))
                 } else {
                     blocks.append(.codeBlock(language: fence.language.isEmpty ? nil : fence.language, code: code))
                 }
@@ -258,14 +264,8 @@ private extension LineMarkdownParser {
     }
 
     static func parseXYChart(_ code: String, language: String) -> MarkdownXYChart? {
-        let normalizedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard normalizedLanguage.isEmpty || normalizedLanguage == "mermaid" else { return nil }
-
-        let lines = code
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .components(separatedBy: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        guard isMermaidLanguage(language) else { return nil }
+        let lines = normalizedMermaidLines(code)
 
         guard lines.first == "xychart-beta" else { return nil }
 
@@ -318,6 +318,147 @@ private extension LineMarkdownParser {
             yAxisRange: yAxisRange,
             series: series
         )
+    }
+
+    static func parsePieChart(_ code: String, language: String) -> MarkdownPieChart? {
+        guard isMermaidLanguage(language) else { return nil }
+        let lines = normalizedMermaidLines(code)
+        guard let firstLine = lines.first,
+              firstLine == "pie" || firstLine.hasPrefix("pie ") else {
+            return nil
+        }
+
+        var title = ""
+        var slices: [MarkdownPieChart.Slice] = []
+
+        for line in lines.dropFirst() {
+            if line.hasPrefix("title ") {
+                title = quotedString(after: "title", in: line) ?? String(line.dropFirst("title".count)).trimmingCharacters(in: .whitespaces)
+                continue
+            }
+
+            guard let item = parseLabelValueLine(line) else { continue }
+            slices.append(.init(label: item.label, value: item.value))
+        }
+
+        guard !slices.isEmpty else { return nil }
+        return MarkdownPieChart(
+            title: title,
+            showData: firstLine.contains("showData"),
+            slices: slices
+        )
+    }
+
+    static func parseQuadrantChart(_ code: String, language: String) -> MarkdownQuadrantChart? {
+        guard isMermaidLanguage(language) else { return nil }
+        let lines = normalizedMermaidLines(code)
+        guard lines.first == "quadrantChart" else { return nil }
+
+        var title = ""
+        var xAxis = ("", "")
+        var yAxis = ("", "")
+        var quadrants = Array(repeating: "", count: 4)
+        var points: [MarkdownQuadrantChart.Point] = []
+
+        for line in lines.dropFirst() {
+            if line.hasPrefix("title ") {
+                title = quotedString(after: "title", in: line) ?? String(line.dropFirst("title".count)).trimmingCharacters(in: .whitespaces)
+                continue
+            }
+
+            if line.hasPrefix("x-axis ") {
+                xAxis = parseDirectionalAxis(line, marker: "x-axis")
+                continue
+            }
+
+            if line.hasPrefix("y-axis ") {
+                yAxis = parseDirectionalAxis(line, marker: "y-axis")
+                continue
+            }
+
+            if line.hasPrefix("quadrant-") {
+                let parts = line.split(separator: " ", maxSplits: 1)
+                guard parts.count == 2,
+                      let numberText = parts[0].split(separator: "-").last,
+                      let number = Int(numberText),
+                      (1...4).contains(number) else {
+                    continue
+                }
+                quadrants[number - 1] = String(parts[1]).trimmingCharacters(in: .whitespaces)
+                continue
+            }
+
+            guard let point = parseQuadrantPoint(line) else { continue }
+            points.append(point)
+        }
+
+        guard !points.isEmpty else { return nil }
+        return MarkdownQuadrantChart(
+            title: title,
+            xAxisStart: xAxis.0,
+            xAxisEnd: xAxis.1,
+            yAxisStart: yAxis.0,
+            yAxisEnd: yAxis.1,
+            quadrants: quadrants,
+            points: points
+        )
+    }
+
+    static func parseTimeline(_ code: String, language: String) -> MarkdownTimeline? {
+        guard isMermaidLanguage(language) else { return nil }
+        let lines = normalizedMermaidLines(code)
+        guard lines.first == "timeline" else { return nil }
+
+        var title = ""
+        var periods: [MarkdownTimeline.Period] = []
+        var currentLabel = ""
+        var currentEvents: [String] = []
+
+        func flushCurrentPeriod() {
+            guard !currentLabel.isEmpty, !currentEvents.isEmpty else { return }
+            periods.append(.init(label: currentLabel, events: currentEvents))
+            currentLabel = ""
+            currentEvents = []
+        }
+
+        for line in lines.dropFirst() {
+            if line.hasPrefix("title ") {
+                title = quotedString(after: "title", in: line) ?? String(line.dropFirst("title".count)).trimmingCharacters(in: .whitespaces)
+                continue
+            }
+
+            guard let colon = line.firstIndex(of: ":") else { continue }
+            let label = String(line[..<colon]).trimmingCharacters(in: .whitespaces)
+            let event = String(line[line.index(after: colon)...]).trimmingCharacters(in: .whitespaces)
+            guard !event.isEmpty else { continue }
+
+            if label.isEmpty {
+                if !currentLabel.isEmpty {
+                    currentEvents.append(event)
+                }
+            } else {
+                flushCurrentPeriod()
+                currentLabel = label
+                currentEvents = [event]
+            }
+        }
+        flushCurrentPeriod()
+
+        guard !periods.isEmpty else { return nil }
+        return MarkdownTimeline(title: title, periods: periods)
+    }
+
+    static func isMermaidLanguage(_ language: String) -> Bool {
+        let normalizedLanguage = language.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return normalizedLanguage.isEmpty || normalizedLanguage == "mermaid"
+    }
+
+    static func normalizedMermaidLines(_ code: String) -> [String] {
+        code
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
     }
 
     static func quotedString(after marker: String, in line: String) -> String? {
@@ -380,6 +521,45 @@ private extension LineMarkdownParser {
         return line[line.index(after: start)..<end]
             .split(separator: ",")
             .compactMap { Double($0.trimmingCharacters(in: .whitespaces)) }
+    }
+
+    static func parseLabelValueLine(_ line: String) -> (label: String, value: Double)? {
+        guard let colon = line.firstIndex(of: ":") else { return nil }
+        let label = unquoted(String(line[..<colon]).trimmingCharacters(in: .whitespaces))
+        let valueText = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+        guard !label.isEmpty, let value = Double(valueText) else { return nil }
+        return (label, value)
+    }
+
+    static func parseDirectionalAxis(_ line: String, marker: String) -> (String, String) {
+        let text = String(line.dropFirst(marker.count)).trimmingCharacters(in: .whitespaces)
+        let parts = text.components(separatedBy: "-->")
+        guard parts.count == 2 else { return ("", "") }
+        return (
+            parts[0].trimmingCharacters(in: .whitespaces),
+            parts[1].trimmingCharacters(in: .whitespaces)
+        )
+    }
+
+    static func parseQuadrantPoint(_ line: String) -> MarkdownQuadrantChart.Point? {
+        guard let colon = line.firstIndex(of: ":") else { return nil }
+        let label = unquoted(String(line[..<colon]).trimmingCharacters(in: .whitespaces))
+        let values = numberArray(in: line)
+        guard values.count == 2 else { return nil }
+        return .init(
+            label: label,
+            x: min(max(values[0], 0), 1),
+            y: min(max(values[1], 0), 1)
+        )
+    }
+
+    static func unquoted(_ text: String) -> String {
+        var value = text.trimmingCharacters(in: .whitespaces)
+        if value.hasPrefix("\""), value.hasSuffix("\""), value.count >= 2 {
+            value.removeFirst()
+            value.removeLast()
+        }
+        return value
     }
 
     static func parseYAxis(_ line: String) -> (label: String, range: ClosedRange<Double>?) {

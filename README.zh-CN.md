@@ -83,7 +83,7 @@ qlmanage -p Samples/basic.md
 - 本地相对图片渲染
 - 反引号或波浪线围栏代码块
 - 表格
-- Mermaid `xychart-beta` 柱状图和折线图
+- Mermaid `xychart-beta`、`pie`、`quadrantChart` 和 `timeline` 图表
 - 分隔线
 - Setext 风格标题
 

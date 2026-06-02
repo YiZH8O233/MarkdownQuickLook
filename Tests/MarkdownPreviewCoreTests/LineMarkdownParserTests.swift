@@ -146,4 +146,88 @@ final class LineMarkdownParserTests: XCTestCase {
             ))
         ])
     }
+
+    func testParsesMermaidPieChartBlocks() {
+        let markdown = """
+        ```mermaid
+        pie showData
+            title "2025年下半年新增AI应用触达形态占比"
+            "插件 / In-App AI" : 81.5
+            "PC网页应用" : 10.7
+            "原生App" : 7.8
+        ```
+        """
+
+        let blocks = LineMarkdownParser().parse(markdown)
+
+        XCTAssertEqual(blocks, [
+            .pieChart(MarkdownPieChart(
+                title: "2025年下半年新增AI应用触达形态占比",
+                showData: true,
+                slices: [
+                    .init(label: "插件 / In-App AI", value: 81.5),
+                    .init(label: "PC网页应用", value: 10.7),
+                    .init(label: "原生App", value: 7.8)
+                ]
+            ))
+        ])
+    }
+
+    func testParsesMermaidQuadrantChartBlocks() {
+        let markdown = """
+        ```mermaid
+        quadrantChart
+            title 重点产品竞争二维矩阵
+            x-axis C端分发能力弱 --> C端分发能力强
+            y-axis 企业落地深度弱 --> 企业落地深度强
+            quadrant-1 平台双强
+            quadrant-2 企业优先
+            quadrant-3 垂直/单点
+            quadrant-4 流量优先
+            ChatGPT: [0.92, 0.80]
+            Gemini: [0.88, 0.86]
+        ```
+        """
+
+        let blocks = LineMarkdownParser().parse(markdown)
+
+        XCTAssertEqual(blocks, [
+            .quadrantChart(MarkdownQuadrantChart(
+                title: "重点产品竞争二维矩阵",
+                xAxisStart: "C端分发能力弱",
+                xAxisEnd: "C端分发能力强",
+                yAxisStart: "企业落地深度弱",
+                yAxisEnd: "企业落地深度强",
+                quadrants: ["平台双强", "企业优先", "垂直/单点", "流量优先"],
+                points: [
+                    .init(label: "ChatGPT", x: 0.92, y: 0.80),
+                    .init(label: "Gemini", x: 0.88, y: 0.86)
+                ]
+            ))
+        ])
+    }
+
+    func testParsesMermaidTimelineBlocks() {
+        let markdown = """
+        ```mermaid
+        timeline
+            title 重点产品技术路线与发布节点
+            2024-Q1 : Gemini 1.5公开MoE与长上下文
+                    : Claude 3家族发布
+            2024-Q2 : 元宝App上线
+        ```
+        """
+
+        let blocks = LineMarkdownParser().parse(markdown)
+
+        XCTAssertEqual(blocks, [
+            .timeline(MarkdownTimeline(
+                title: "重点产品技术路线与发布节点",
+                periods: [
+                    .init(label: "2024-Q1", events: ["Gemini 1.5公开MoE与长上下文", "Claude 3家族发布"]),
+                    .init(label: "2024-Q2", events: ["元宝App上线"])
+                ]
+            ))
+        ])
+    }
 }
