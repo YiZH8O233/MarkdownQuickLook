@@ -102,9 +102,12 @@ First version supports a small, fast Markdown subset:
 
 - Headings
 - Paragraphs
+- Hidden YAML front matter
 - Block quotes
 - Ordered, unordered, and task lists
-- Bold, italic, bold italic, inline code, links, autolinks, bare URLs, and strikethrough
+- Bold, italic, bold italic, inline code, links, autolinks, bare URLs, strikethrough, and `==highlight==`
+- Footnote references and definitions
+- Common backslash escape cleanup
 - Academic Ink Blue semantic color theme
 - Local relative images
 - Fenced code blocks with backticks or tildes
@@ -112,6 +115,17 @@ First version supports a small, fast Markdown subset:
 - Mermaid `xychart-beta`, `pie`, `quadrantChart`, and `timeline` charts
 
 Remote images are not loaded. URLs such as `https://example.com/image.png` render as safe text instead of making a network request. Local images are constrained by file size and display size so Finder previews stay responsive.
+
+## Supported File Types
+
+In addition to `.md` and `.markdown`, the app also tries to recognize common Markdown-derived files:
+
+- `.mdown`
+- `.mdx`
+- `.rmd`
+- `.qmd`
+- `.apib`
+- `.mdc`
 
 ## Samples
 

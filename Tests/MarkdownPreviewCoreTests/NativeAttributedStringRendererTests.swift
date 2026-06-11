@@ -107,10 +107,10 @@ final class NativeAttributedStringRendererTests: XCTestCase {
         let renderer = NativeAttributedStringRenderer()
 
         let output = renderer.render([
-            .paragraph("*斜体* _强调_ **加粗** __强烈__ ***重点*** `code` [官网](https://example.com) <https://example.com/a> https://example.com/b ~~删除~~")
+            .paragraph("*斜体* _强调_ **加粗** __强烈__ ***重点*** `code` [官网](https://example.com) <https://example.com/a> https://example.com/b ~~删除~~ ==高亮==")
         ])
 
-        XCTAssertEqual(output.string, "斜体 强调 加粗 强烈 重点 code 官网 https://example.com/a https://example.com/b 删除\n")
+        XCTAssertEqual(output.string, "斜体 强调 加粗 强烈 重点 code 官网 https://example.com/a https://example.com/b 删除 高亮\n")
         XCTAssertFalse(output.string.contains("*"))
         XCTAssertFalse(output.string.contains("_"))
         XCTAssertFalse(output.string.contains("`"))
@@ -140,6 +140,38 @@ final class NativeAttributedStringRendererTests: XCTestCase {
 
         let strikethroughRange = (output.string as NSString).range(of: "删除")
         XCTAssertNotNil(output.attribute(.strikethroughStyle, at: strikethroughRange.location, effectiveRange: nil))
+
+        let highlightRange = (output.string as NSString).range(of: "高亮")
+        XCTAssertNotNil(output.attribute(.backgroundColor, at: highlightRange.location, effectiveRange: nil))
+    }
+
+    func testRendersEscapedMarkdownPunctuationAsLiteralText() throws {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .paragraph("\\*literal\\* \\[not link\\]\\(x\\) \\`code\\`")
+        ])
+
+        XCTAssertEqual(output.string, "*literal* [not link](x) `code`\n")
+
+        let literalRange = (output.string as NSString).range(of: "literal")
+        let font = try XCTUnwrap(output.attribute(.font, at: literalRange.location, effectiveRange: nil) as? NSFont)
+        XCTAssertFalse(font.fontDescriptor.symbolicTraits.contains(.italic))
+    }
+
+    func testRendersFootnoteReferencesAndDefinitions() {
+        let renderer = NativeAttributedStringRenderer()
+
+        let output = renderer.render([
+            .paragraph("Body with note[^1]."),
+            .footnotes([
+                .init(label: "1", text: "Footnote **detail**.")
+            ])
+        ])
+
+        XCTAssertTrue(output.string.contains("Body with note[1]."))
+        XCTAssertTrue(output.string.contains("[1] Footnote detail."))
+        XCTAssertFalse(output.string.contains("[^1]"))
     }
 
     func testRendersTaskListMarkersAsNativeCheckboxGlyphs() {

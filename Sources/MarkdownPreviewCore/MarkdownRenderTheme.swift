@@ -11,6 +11,7 @@ public struct MarkdownRenderTheme: @unchecked Sendable {
     public let quoteAccentColor: NSColor
     public let tableHeaderBackgroundColor: NSColor
     public let codeBackgroundColor: NSColor
+    public let highlightBackgroundColor: NSColor
     public let ruleColor: NSColor
     public let subtleRuleColor: NSColor
     public let chartColor: NSColor
@@ -26,6 +27,7 @@ public struct MarkdownRenderTheme: @unchecked Sendable {
         quoteAccentColor: NSColor,
         tableHeaderBackgroundColor: NSColor,
         codeBackgroundColor: NSColor,
+        highlightBackgroundColor: NSColor,
         ruleColor: NSColor,
         subtleRuleColor: NSColor,
         chartColor: NSColor
@@ -40,6 +42,7 @@ public struct MarkdownRenderTheme: @unchecked Sendable {
         self.quoteAccentColor = quoteAccentColor
         self.tableHeaderBackgroundColor = tableHeaderBackgroundColor
         self.codeBackgroundColor = codeBackgroundColor
+        self.highlightBackgroundColor = highlightBackgroundColor
         self.ruleColor = ruleColor
         self.subtleRuleColor = subtleRuleColor
         self.chartColor = chartColor
@@ -56,6 +59,7 @@ public struct MarkdownRenderTheme: @unchecked Sendable {
         quoteAccentColor: dynamicColor(light: 0x378ADD, dark: 0x79B5EF),
         tableHeaderBackgroundColor: dynamicColor(light: 0xF1F4F6, dark: 0x282B2E),
         codeBackgroundColor: dynamicColor(light: 0xF1F4F6, dark: 0x282B2E),
+        highlightBackgroundColor: dynamicColor(light: 0xE5F2FF, dark: 0x173A56),
         ruleColor: dynamicColor(light: 0xD8D8D2, dark: 0x484A4A),
         subtleRuleColor: dynamicColor(light: 0xDCE5EC, dark: 0x33414D),
         chartColor: dynamicColor(light: 0x0C447C, dark: 0x8DB7E3)

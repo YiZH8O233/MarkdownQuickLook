@@ -121,6 +121,45 @@ final class LineMarkdownParserTests: XCTestCase {
         ])
     }
 
+    func testSkipsYamlFrontMatterAtDocumentStart() {
+        let markdown = """
+        ---
+        title: Report
+        tags:
+          - markdown
+        ---
+
+        # Visible Title
+
+        Body text.
+        """
+
+        let blocks = LineMarkdownParser().parse(markdown)
+
+        XCTAssertEqual(blocks, [
+            .heading(level: 1, text: "Visible Title"),
+            .paragraph("Body text.")
+        ])
+    }
+
+    func testCollectsFootnoteDefinitionsAtEnd() {
+        let markdown = """
+        Body with note[^1].
+
+        [^1]: First footnote line.
+            Continued footnote line.
+        """
+
+        let blocks = LineMarkdownParser().parse(markdown)
+
+        XCTAssertEqual(blocks, [
+            .paragraph("Body with note[^1]."),
+            .footnotes([
+                .init(label: "1", text: "First footnote line. Continued footnote line.")
+            ])
+        ])
+    }
+
     func testParsesMermaidXYChartBlocks() {
         let markdown = """
         ```mermaid

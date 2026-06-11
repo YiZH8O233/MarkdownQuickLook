@@ -11,6 +11,12 @@
 			<array>
 				<string>md</string>
 				<string>markdown</string>
+				<string>mdown</string>
+				<string>mdx</string>
+				<string>rmd</string>
+				<string>qmd</string>
+				<string>apib</string>
+				<string>mdc</string>
 			</array>
 			<key>CFBundleTypeName</key>
 			<string>Markdown Document</string>
@@ -20,6 +26,14 @@
 			<array>
 				<string>net.daringfireball.markdown</string>
 				<string>public.markdown</string>
+				<string>com.unknown.md</string>
+				<string>io.typora.markdown</string>
+				<string>net.ia.markdown</string>
+				<string>com.rstudio.rmarkdown</string>
+				<string>org.quarto.qmarkdown</string>
+				<string>org.apiblueprint.file</string>
+				<string>local.markdownquicklook.mdx</string>
+				<string>local.markdownquicklook.cursor-rules</string>
 			</array>
 		</dict>
 	</array>
@@ -59,6 +73,7 @@
 				<array>
 					<string>md</string>
 					<string>markdown</string>
+					<string>mdown</string>
 				</array>
 				<key>public.mime-type</key>
 				<string>text/markdown</string>
@@ -79,7 +94,98 @@
 				<array>
 					<string>md</string>
 					<string>markdown</string>
+					<string>mdown</string>
 				</array>
+				<key>public.mime-type</key>
+				<string>text/markdown</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.markdown</string>
+				<string>public.text</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>R Markdown Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.rstudio.rmarkdown</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<string>rmd</string>
+				<key>public.mime-type</key>
+				<string>text/markdown</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.markdown</string>
+				<string>public.text</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Quarto Markdown Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.quarto.qmarkdown</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<string>qmd</string>
+				<key>public.mime-type</key>
+				<string>text/markdown</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.markdown</string>
+				<string>public.text</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>API Blueprint Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.apiblueprint.file</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<string>apib</string>
+				<key>public.mime-type</key>
+				<string>text/markdown</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.markdown</string>
+				<string>public.text</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>MDX Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>local.markdownquicklook.mdx</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<string>mdx</string>
+				<key>public.mime-type</key>
+				<string>text/markdown</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.markdown</string>
+				<string>public.text</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Cursor Markdown Rules Document</string>
+			<key>UTTypeIdentifier</key>
+			<string>local.markdownquicklook.cursor-rules</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<string>mdc</string>
 				<key>public.mime-type</key>
 				<string>text/markdown</string>
 			</dict>

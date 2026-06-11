@@ -17,6 +17,7 @@ private struct InlineStyle {
     var bold = false
     var italic = false
     var strikethrough = false
+    var highlight = false
 }
 
 public struct NativeAttributedStringRenderer {
@@ -112,6 +113,8 @@ public struct NativeAttributedStringRenderer {
                 result.append(quadrantChartBlock(chart))
             case let .timeline(timeline):
                 result.append(timelineBlock(timeline))
+            case let .footnotes(footnotes):
+                result.append(footnotesBlock(footnotes))
             }
         }
 
@@ -124,7 +127,7 @@ public struct NativeAttributedStringRenderer {
         paragraph.paragraphSpacing = 6
 
         return NSAttributedString(
-            string: plainPreviewText(text),
+            string: plainPreviewText(text, unescapeMarkdown: true),
             attributes: [
                 .font: NSFont.systemFont(ofSize: 14),
                 .foregroundColor: theme.primaryTextColor,
@@ -135,7 +138,7 @@ public struct NativeAttributedStringRenderer {
 }
 
 private extension NativeAttributedStringRenderer {
-    func plainPreviewText(_ text: String) -> String {
+    func plainPreviewText(_ text: String, unescapeMarkdown: Bool) -> String {
         var output = text
         while let start = output.range(of: ""),
               let end = output[start.upperBound...].range(of: "") {
@@ -143,25 +146,46 @@ private extension NativeAttributedStringRenderer {
             let marker = String(output[markerRange])
             output.replaceSubrange(markerRange, with: replacement(forMarker: marker))
         }
-        output = output.replacingOccurrences(of: "\\*\\*", with: "**")
-        output = output.replacingOccurrences(of: "\\_\\_", with: "__")
-        output = output.replacingOccurrences(of: "\\*", with: "*")
-        output = output.replacingOccurrences(of: "\\_", with: "_")
-        output = output.replacingOccurrences(of: "\\~", with: "~")
-        output = output.replacingOccurrences(of: "\\`", with: "`")
-        output = output.replacingOccurrences(of: "\\[", with: "[")
-        output = output.replacingOccurrences(of: "\\]", with: "]")
-        output = output.replacingOccurrences(of: "\\(", with: "(")
-        output = output.replacingOccurrences(of: "\\)", with: ")")
+        if unescapeMarkdown {
+            output = unescapedMarkdownText(output)
+        }
         output = output.replacingOccurrences(of: " ()", with: "")
         output = output.replacingOccurrences(of: "()", with: "")
         return output
     }
 
     func displayText(_ text: String) -> String {
-        return plainPreviewText(text)
+        return normalizedEscapedMarkdownMarkers(plainPreviewText(text, unescapeMarkdown: false))
             .replacingOccurrences(of: "  ", with: " ")
             .trimmingCharacters(in: .whitespaces)
+    }
+
+    func normalizedEscapedMarkdownMarkers(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "\\*\\*\\*", with: "***")
+            .replacingOccurrences(of: "\\_\\_\\_", with: "___")
+            .replacingOccurrences(of: "\\*\\*", with: "**")
+            .replacingOccurrences(of: "\\_\\_", with: "__")
+            .replacingOccurrences(of: "\\~\\~", with: "~~")
+            .replacingOccurrences(of: "\\=\\=", with: "==")
+    }
+
+    func unescapedMarkdownText(_ text: String) -> String {
+        var output = ""
+        var index = text.startIndex
+        while index < text.endIndex {
+            if text[index] == "\\" {
+                let next = text.index(after: index)
+                if next < text.endIndex, isEscapableMarkdownPunctuation(text[next]) {
+                    output.append(text[next])
+                    index = text.index(after: next)
+                    continue
+                }
+            }
+            output.append(text[index])
+            index = text.index(after: index)
+        }
+        return output
     }
 
     func replacement(forMarker marker: String) -> String {
@@ -325,6 +349,23 @@ private extension NativeAttributedStringRenderer {
         var index = text.startIndex
 
         while index < text.endIndex {
+            if let escaped = escapedMarkdownCharacter(in: text, at: index) {
+                appendStyledText(
+                    String(escaped.character),
+                    to: result,
+                    style: style,
+                    font: font,
+                    boldFont: boldFont,
+                    italicFont: italicFont,
+                    boldItalicFont: boldItalicFont,
+                    color: color,
+                    boldColor: boldColor,
+                    paragraph: paragraph
+                )
+                index = escaped.end
+                continue
+            }
+
             if text[index] == "`",
                let closing = findClosing("`", in: text, after: text.index(after: index)) {
                 appendCodeText(
@@ -333,6 +374,17 @@ private extension NativeAttributedStringRenderer {
                     paragraph: paragraph
                 )
                 index = text.index(after: closing)
+                continue
+            }
+
+            if let footnote = parseFootnoteReference(in: text, at: index) {
+                appendFootnoteReference(
+                    footnote.label,
+                    to: result,
+                    font: font,
+                    paragraph: paragraph
+                )
+                index = footnote.end
                 continue
             }
 
@@ -390,6 +442,7 @@ private extension NativeAttributedStringRenderer {
                 nextStyle.bold = nextStyle.bold || marker.bold
                 nextStyle.italic = nextStyle.italic || marker.italic
                 nextStyle.strikethrough = nextStyle.strikethrough || marker.strikethrough
+                nextStyle.highlight = nextStyle.highlight || marker.highlight
 
                 appendInlineMarkdown(
                     String(text[text.index(index, offsetBy: marker.literal.count)..<closing]),
@@ -513,6 +566,9 @@ private extension NativeAttributedStringRenderer {
         if style.strikethrough {
             attributes[.strikethroughStyle] = NSUnderlineStyle.single.rawValue
         }
+        if style.highlight {
+            attributes[.backgroundColor] = theme.highlightBackgroundColor
+        }
         return attributes
     }
 
@@ -533,21 +589,33 @@ private extension NativeAttributedStringRenderer {
         NSFontManager.shared.convert(font, toHaveTrait: .italicFontMask)
     }
 
-    func inlineMarker(in text: String, at index: String.Index) -> (literal: String, bold: Bool, italic: Bool, strikethrough: Bool)? {
-        let markers: [(String, Bool, Bool, Bool)] = [
-            ("***", true, true, false),
-            ("___", true, true, false),
-            ("**", true, false, false),
-            ("__", true, false, false),
-            ("~~", false, false, true),
-            ("*", false, true, false),
-            ("_", false, true, false)
+    func inlineMarker(in text: String, at index: String.Index) -> (literal: String, bold: Bool, italic: Bool, strikethrough: Bool, highlight: Bool)? {
+        let markers: [(String, Bool, Bool, Bool, Bool)] = [
+            ("***", true, true, false, false),
+            ("___", true, true, false, false),
+            ("**", true, false, false, false),
+            ("__", true, false, false, false),
+            ("~~", false, false, true, false),
+            ("==", false, false, false, true),
+            ("*", false, true, false, false),
+            ("_", false, true, false, false)
         ]
 
         for marker in markers where matchesMarker(marker.0, in: text, at: index) {
             return marker
         }
         return nil
+    }
+
+    func escapedMarkdownCharacter(in text: String, at index: String.Index) -> (character: Character, end: String.Index)? {
+        guard text[index] == "\\" else { return nil }
+        let next = text.index(after: index)
+        guard next < text.endIndex, isEscapableMarkdownPunctuation(text[next]) else { return nil }
+        return (text[next], text.index(after: next))
+    }
+
+    func isEscapableMarkdownPunctuation(_ character: Character) -> Bool {
+        "\\`*_{}[]<>()#+-.!|~=:^".contains(character)
     }
 
     func matchesMarker(_ marker: String, in text: String, at index: String.Index) -> Bool {
@@ -602,6 +670,35 @@ private extension NativeAttributedStringRenderer {
         let destination = String(text[destinationStart..<closeDestination])
         guard !label.isEmpty, !destination.isEmpty else { return nil }
         return (label, destination, text.index(after: closeDestination))
+    }
+
+    func parseFootnoteReference(in text: String, at index: String.Index) -> (label: String, end: String.Index)? {
+        guard text[index...].hasPrefix("[^"),
+              let close = text[index...].firstIndex(of: "]") else {
+            return nil
+        }
+        let labelStart = text.index(index, offsetBy: 2)
+        let label = String(text[labelStart..<close]).trimmingCharacters(in: .whitespaces)
+        guard !label.isEmpty else { return nil }
+        return (label, text.index(after: close))
+    }
+
+    func appendFootnoteReference(
+        _ label: String,
+        to result: NSMutableAttributedString,
+        font: NSFont,
+        paragraph: NSParagraphStyle
+    ) {
+        let smallerFont = NSFont.systemFont(ofSize: max(font.pointSize - 3, 9), weight: .semibold)
+        result.append(NSAttributedString(
+            string: "[\(label)]",
+            attributes: [
+                .font: smallerFont,
+                .foregroundColor: theme.quoteAccentColor,
+                .baselineOffset: 4,
+                .paragraphStyle: paragraph
+            ]
+        ))
     }
 
     func parseAngleAutolink(in text: String, at index: String.Index) -> (label: String, destination: String, end: String.Index)? {
@@ -681,6 +778,38 @@ private extension NativeAttributedStringRenderer {
             .font: NSFont.systemFont(ofSize: 1),
             .paragraphStyle: paragraph
         ])
+    }
+
+    func footnotesBlock(_ footnotes: [MarkdownFootnote]) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        result.append(thematicBreak())
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.paragraphSpacing = 4
+        paragraph.lineSpacing = 1
+
+        for footnote in footnotes {
+            result.append(NSAttributedString(
+                string: "[\(footnote.label)] ",
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: 12, weight: .semibold),
+                    .foregroundColor: theme.quoteAccentColor,
+                    .paragraphStyle: paragraph
+                ]
+            ))
+            result.append(inlineMarkdown(
+                displayText(footnote.text),
+                font: .systemFont(ofSize: 12),
+                boldFont: .systemFont(ofSize: 12, weight: .semibold),
+                color: theme.secondaryTextColor,
+                boldColor: theme.boldTextColor,
+                paragraph: paragraph
+            ))
+            result.append(NSAttributedString(string: "\n", attributes: [.paragraphStyle: paragraph]))
+        }
+
+        result.append(NSAttributedString(string: "\n"))
+        return result
     }
 
     func tableBlock(_ table: MarkdownTable) -> NSAttributedString {

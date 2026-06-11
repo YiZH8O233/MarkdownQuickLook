@@ -32,6 +32,14 @@
 			<array>
 				<string>net.daringfireball.markdown</string>
 				<string>public.markdown</string>
+				<string>com.unknown.md</string>
+				<string>io.typora.markdown</string>
+				<string>net.ia.markdown</string>
+				<string>com.rstudio.rmarkdown</string>
+				<string>org.quarto.qmarkdown</string>
+				<string>org.apiblueprint.file</string>
+				<string>local.markdownquicklook.mdx</string>
+				<string>local.markdownquicklook.cursor-rules</string>
 			</array>
 		</dict>
 	</dict>

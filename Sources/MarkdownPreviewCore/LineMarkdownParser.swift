@@ -8,14 +8,34 @@ public struct LineMarkdownParser {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .components(separatedBy: "\n")
         var blocks: [MarkdownBlock] = []
+        var footnotes: [MarkdownFootnote] = []
         var index = 0
 
         while index < lines.count {
+            if index == 0, let frontMatterEnd = Self.frontMatterEndIndex(in: lines) {
+                index = frontMatterEnd + 1
+                continue
+            }
+
             let line = lines[index]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
             if trimmed.isEmpty {
                 index += 1
+                continue
+            }
+
+            if let footnote = Self.parseFootnoteDefinitionStart(trimmed) {
+                var textLines = footnote.text.isEmpty ? [] : [footnote.text]
+                index += 1
+                while index < lines.count, Self.isFootnoteContinuation(lines[index]) {
+                    let continuation = lines[index].trimmingCharacters(in: .whitespaces)
+                    if !continuation.isEmpty {
+                        textLines.append(continuation)
+                    }
+                    index += 1
+                }
+                footnotes.append(.init(label: footnote.label, text: textLines.joined(separator: " ")))
                 continue
             }
 
@@ -122,6 +142,7 @@ public struct LineMarkdownParser {
                     next.hasPrefix("|") ||
                     Self.isUnorderedListItem(next) ||
                     Self.orderedListText(next) != nil ||
+                    Self.parseFootnoteDefinitionStart(next) != nil ||
                     Self.parseImage(next) != nil {
                     break
                 }
@@ -134,11 +155,32 @@ public struct LineMarkdownParser {
             blocks.append(.paragraph(paragraphLines.joined(separator: " ")))
         }
 
+        if !footnotes.isEmpty {
+            blocks.append(.footnotes(footnotes))
+        }
+
         return blocks
     }
 }
 
 private extension LineMarkdownParser {
+    static func frontMatterEndIndex(in lines: [String]) -> Int? {
+        guard lines.first?.trimmingCharacters(in: .whitespaces) == "---" else { return nil }
+
+        var sawMetadataLine = false
+        for index in lines.indices.dropFirst() {
+            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+            if trimmed == "---" || trimmed == "..." {
+                return sawMetadataLine ? index : nil
+            }
+            if !trimmed.isEmpty,
+               (trimmed.contains(":") || trimmed.hasPrefix("- ")) {
+                sawMetadataLine = true
+            }
+        }
+        return nil
+    }
+
     static func parseHeading(_ line: String) -> MarkdownBlock? {
         let markerCount = line.prefix(while: { $0 == "#" }).count
         guard (1...6).contains(markerCount) else { return nil }
@@ -195,6 +237,27 @@ private extension LineMarkdownParser {
         let textStart = line.index(after: marker)
         guard textStart < line.endIndex, line[textStart] == " " else { return nil }
         return String(line[line.index(after: textStart)...])
+    }
+
+    static func parseFootnoteDefinitionStart(_ line: String) -> (label: String, text: String)? {
+        guard line.hasPrefix("[^"),
+              let closeLabel = line.firstIndex(of: "]") else {
+            return nil
+        }
+        let colon = line.index(after: closeLabel)
+        guard colon < line.endIndex, line[colon] == ":" else { return nil }
+
+        let labelStart = line.index(line.startIndex, offsetBy: 2)
+        let label = String(line[labelStart..<closeLabel]).trimmingCharacters(in: .whitespaces)
+        guard !label.isEmpty else { return nil }
+
+        let textStart = line.index(after: colon)
+        let text = String(line[textStart...]).trimmingCharacters(in: .whitespaces)
+        return (label, text)
+    }
+
+    static func isFootnoteContinuation(_ line: String) -> Bool {
+        line.hasPrefix("    ") || line.hasPrefix("\t")
     }
 
     static func parseFenceStart(_ line: String) -> (marker: Character, count: Int, language: String)? {

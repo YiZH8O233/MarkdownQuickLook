@@ -141,6 +141,16 @@ public struct MarkdownTimeline: Equatable {
     }
 }
 
+public struct MarkdownFootnote: Equatable {
+    public let label: String
+    public let text: String
+
+    public init(label: String, text: String) {
+        self.label = label
+        self.text = text
+    }
+}
+
 public enum MarkdownBlock: Equatable {
     case heading(level: Int, text: String)
     case paragraph(String)
@@ -155,4 +165,5 @@ public enum MarkdownBlock: Equatable {
     case pieChart(MarkdownPieChart)
     case quadrantChart(MarkdownQuadrantChart)
     case timeline(MarkdownTimeline)
+    case footnotes([MarkdownFootnote])
 }
