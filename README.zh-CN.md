@@ -17,11 +17,29 @@
 
 ## 系统要求
 
+### 普通用户
+
+- macOS 13 Ventura 或更高版本
+- 不需要安装 Xcode
+
+### 开发者
+
 - macOS 13 Ventura 或更高版本
 - Xcode 26.2 或较新的完整 Xcode
 - Swift 6
 
 如果当前命令行开发目录仍指向 Command Line Tools，也可以直接使用下面的完整 Xcode 路径构建，不需要修改全局 `xcode-select` 设置。
+
+## 普通用户安装
+
+普通用户不要下载源码构建。请在 GitHub Releases 下载 `MarkdownQuickLook.zip`：
+
+1. 解压 `MarkdownQuickLook.zip`。
+2. 将 `MarkdownQuickLook.app` 拖到 `/Applications`。
+3. 第一次运行时打开一次 `MarkdownQuickLook.app`，让 macOS 注册 Quick Look 扩展。
+4. 在 Finder 里选中 `.md` 或 `.markdown` 文件，按空格预览。
+
+如果 macOS 提示无法打开测试版应用，可以在 Finder 中右键点击 `MarkdownQuickLook.app`，选择“打开”。这是未公证测试包的常见 Gatekeeper 行为。正式公开分发建议使用 Apple Developer ID 签名并公证。
 
 ## 构建
 
@@ -69,6 +87,23 @@ qlmanage -r cache
 ```bash
 qlmanage -p Samples/basic.md
 ```
+
+## 打包发布
+
+维护者可以在本机生成给普通用户下载的 zip：
+
+```bash
+./scripts/package-release.sh
+```
+
+生成的文件位于 `dist/MarkdownQuickLook.zip`。创建 GitHub tag 后，仓库的 Release workflow 会自动构建并上传同名 zip：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+注意：这个流程生成的是适合测试分发的本地签名包。要做到首次打开几乎无提示，需要 Apple Developer Program 的 Developer ID 证书，并对发布包做 notarization。
 
 ## 支持的 Markdown
 

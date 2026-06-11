@@ -8,11 +8,29 @@ Select a `.md` or `.markdown` file in Finder, press Space, and preview it withou
 
 ## Requirements
 
+### Users
+
+- macOS 13 Ventura or later
+- Xcode is not required
+
+### Developers
+
 - macOS 13 Ventura or later
 - Xcode 26.2 or another recent full Xcode installation
 - Swift 6
 
 The active command line developer directory may still point at Command Line Tools. The build commands below call Xcode directly so they do not require changing global `xcode-select` state.
+
+## Install For Users
+
+End users should not build from source. Download `MarkdownQuickLook.zip` from GitHub Releases instead:
+
+1. Unzip `MarkdownQuickLook.zip`.
+2. Move `MarkdownQuickLook.app` to `/Applications`.
+3. Open `MarkdownQuickLook.app` once so macOS registers the Quick Look extension.
+4. Select a `.md` or `.markdown` file in Finder and press Space.
+
+If macOS blocks the test build, right-click `MarkdownQuickLook.app` in Finder and choose Open. This is normal Gatekeeper behavior for an unnotarized test build. Public distribution should use Apple Developer ID signing and notarization.
 
 ## Build
 
@@ -60,6 +78,23 @@ You can also test from Terminal after the app has been built and registered:
 ```bash
 qlmanage -p Samples/basic.md
 ```
+
+## Package A Release
+
+Maintainers can create a zip for end users locally:
+
+```bash
+./scripts/package-release.sh
+```
+
+The package is written to `dist/MarkdownQuickLook.zip`. Pushing a GitHub tag also runs the release workflow and uploads the zip:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+This package is suitable for test distribution. For a near-frictionless first launch, sign with an Apple Developer ID certificate and notarize the app.
 
 ## Supported Markdown
 
