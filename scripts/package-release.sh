@@ -2,7 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-XCODEBUILD="${XCODEBUILD:-/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild}"
+if [[ -z "${XCODEBUILD:-}" ]]; then
+  if [[ -x "/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild" ]]; then
+    XCODEBUILD="/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild"
+  else
+    XCODEBUILD="$(/usr/bin/xcrun --find xcodebuild 2>/dev/null || true)"
+  fi
+fi
 DERIVED_DATA="$ROOT_DIR/.build/XcodeDerivedData"
 DIST_DIR="$ROOT_DIR/dist"
 APP_NAME="MarkdownQuickLook.app"
