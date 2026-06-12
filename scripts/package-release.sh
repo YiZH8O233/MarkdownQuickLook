@@ -29,6 +29,9 @@ mkdir -p "$DIST_DIR"
   -configuration Release \
   -destination "platform=macOS" \
   -derivedDataPath "$DERIVED_DATA" \
+  CODE_SIGN_STYLE=Manual \
+  CODE_SIGN_IDENTITY=- \
+  DEVELOPMENT_TEAM= \
   clean build
 
 APP_PATH="$DERIVED_DATA/Build/Products/Release/$APP_NAME"
